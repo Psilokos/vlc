@@ -348,6 +348,9 @@
 /* VDPAU output surface RGBA */
 #define VLC_CODEC_VDPAU_OUTPUT    VLC_FOURCC('V','D','O','R')
 
+/* VAAPI opaque surface */
+#define VLC_CODEC_VAAPI_OPAQUE    VLC_FOURCC('V','A','O','P')
+
 /* MediaCodec/IOMX opaque buffer type */
 #define VLC_CODEC_ANDROID_OPAQUE  VLC_FOURCC('A','N','O','P')
 

@@ -694,6 +694,8 @@ static const struct
         VLC_CODEC_CVPX_I420, VLC_CODEC_CVPX_BGRA },
                                                FAKE_FMT() },
 
+    { { VLC_CODEC_VAAPI_OPAQUE },              FAKE_FMT() },
+
     { { 0 },                                   FAKE_FMT() }
 };
 
