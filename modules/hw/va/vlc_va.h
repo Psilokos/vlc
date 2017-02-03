@@ -106,6 +106,10 @@ int vlc_va_VaFourcc(vlc_fourcc_t fourcc,
 struct picture_sys_t {
     VADisplay     va_dpy;
     VASurfaceID   va_surface_id;
+
+    /* The following can be used to create a VAContextID via vaCreateContext */
+    VASurfaceID*  va_render_targets;
+    int           va_num_render_targets;
 };
 
 picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned requested_count,

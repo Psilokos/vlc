@@ -192,7 +192,9 @@ static void PictureDestroyVAAPI(picture_t *pic)
 
 static int PictureNew(VADisplay va_dpy,
                       const video_format_t *fmt,
-                      picture_t **picp, VASurfaceID id)
+                      picture_t **picp, VASurfaceID id,
+                      VASurfaceID *render_targets,
+                      int num_render_targets)
 {
     picture_sys_t *sys = malloc(sizeof (*sys));
     if (unlikely(sys == NULL))
@@ -200,6 +202,8 @@ static int PictureNew(VADisplay va_dpy,
 
     sys->va_dpy        = va_dpy;
     sys->va_surface_id = id;
+    sys->va_render_targets = render_targets;
+    sys->va_num_render_targets = num_render_targets;
 
     picture_resource_t res = {
         .p_sys = sys,
@@ -240,7 +244,8 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
 #endif
 
     for (count = 0; count < requested_count; count++) {
-        int err = PictureNew(va_dpy, fmt, pics + count, va_surface_ids[count]);
+        int err = PictureNew(va_dpy, fmt, pics + count, va_surface_ids[count],
+                             va_surface_ids, requested_count);
         if (err != VLC_SUCCESS) {
             break;
         }
