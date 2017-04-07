@@ -4,6 +4,7 @@
  * Copyright (C) 2016 VLC authors and VideoLAN
  *
  * Authors: Petri Hintukainen <phintuka@gmail.com>
+ *          Victorien Le Couviour--Tuffet <victorien.lecouviour.tuffet@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -37,6 +38,10 @@
 #include <vlc_fourcc.h>
 #include <vlc_picture_pool.h>
 #include <vlc_subpicture.h>
+
+/*****************
+ * VAAPI display *
+ *****************/
 
 int vlc_va_Initialize(vlc_object_t *o, VADisplay va_dpy)
 {
@@ -74,9 +79,217 @@ int vlc_va_SetDisplayAttribute(VADisplay va_dpy, VADisplayAttribType type, int v
     return vaSetDisplayAttributes(va_dpy, &attr, 1);
 }
 
-/*
- * VAAPI image format
- */
+/**************************
+ * VAAPI create & destroy *
+ **************************/
+
+int
+vlc_va_CreateConfig(vlc_object_t *o, VADisplay dpy, VAProfile profile,
+                    VAEntrypoint entrypoint, VAConfigAttrib *attrib_list,
+                    int num_attribs, VAConfigID *p_conf)
+{
+    VA_CALL(o, {}, vaCreateConfig, dpy, profile,
+            entrypoint, attrib_list, num_attribs, p_conf);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_CreateContext(vlc_object_t *o, VADisplay dpy, VAConfigID conf,
+                     int pic_w, int pic_h, int flag,
+                     VASurfaceID *render_targets, int num_render_targets,
+                     VAContextID *p_ctx)
+{
+    VA_CALL(o, {}, vaCreateContext, dpy, conf, pic_w, pic_h, flag,
+            render_targets, num_render_targets, p_ctx);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_CreateBuffer(vlc_object_t *o, VADisplay dpy, VAContextID ctx,
+                    VABufferType type, unsigned int size,
+                    unsigned int num_elements, void *data, VABufferID *buf_id)
+{
+    VA_CALL(o, {}, vaCreateBuffer, dpy, ctx, type,
+            size, num_elements, data, buf_id);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_DeriveImage(vlc_object_t *o,
+                   VADisplay va_dpy, VASurfaceID surface, VAImage *image)
+{
+    VA_CALL(o, {}, vaDeriveImage, va_dpy, surface, image);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_DestroyConfig(vlc_object_t *o, VADisplay dpy, VAConfigID conf)
+{
+    VA_CALL(o, {}, vaDestroyConfig, dpy, conf);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_DestroyContext(vlc_object_t *o, VADisplay dpy, VAContextID ctx)
+{
+    VA_CALL(o, {}, vaDestroyContext, dpy, ctx);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_DestroyBuffer(vlc_object_t *o, VADisplay dpy, VABufferID buf)
+{
+    VA_CALL(o, {}, vaDestroyBuffer, dpy, buf);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_DestroyImage(vlc_object_t *o, VADisplay dpy, VAImageID image)
+{
+    VA_CALL(o, {}, vaDestroyImage, dpy, image);
+    return VLC_SUCCESS;
+}
+
+/***********************
+ * VAAPI buffer access *
+ ***********************/
+
+int
+vlc_va_MapBuffer(vlc_object_t *o, VADisplay dpy,
+                 VABufferID buf_id, void **p_buf)
+{
+    VA_CALL(o, {}, vaMapBuffer, dpy, buf_id, p_buf);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_UnmapBuffer(vlc_object_t *o, VADisplay dpy, VABufferID buf)
+{
+    VA_CALL(o, {}, vaUnmapBuffer, dpy, buf);
+    return VLC_SUCCESS;
+}
+
+/*****************
+ * VAAPI queries *
+ *****************/
+
+int
+vlc_va_IsEntrypointAvailable(vlc_object_t *o,
+                             VADisplay dpy, VAEntrypoint entrypoint)
+{
+    VAEntrypoint *      entrypoints;
+    int                 num_entrypoints;
+    int                 ret;
+
+    if (vlc_va_QueryEntrypoints(o, dpy, &entrypoints, &num_entrypoints))
+        return VLC_EGENERIC;
+
+    for (int i = 0; i < num_entrypoints; ++i)
+        if (entrypoint == entrypoints[i])
+        {
+            ret = VLC_SUCCESS;
+            goto end;
+        }
+
+    ret = VLC_EGENERIC;
+
+end:
+    free(entrypoints);
+    return ret;
+}
+
+int
+vlc_va_QueryEntrypoints(vlc_object_t *o, VADisplay dpy,
+                        VAEntrypoint **p_entrypoints,
+                        int *p_num_entrypoints)
+{
+    int num_entrypoints;
+
+    if ((num_entrypoints = vaMaxNumEntrypoints(dpy)) <= 0)
+        return VLC_EGENERIC;
+    if (!(*p_entrypoints = malloc(num_entrypoints * sizeof(VAEntrypoint))))
+    {
+        msg_Err(o, "unable to allocate memory");
+        return VLC_ENOMEM;
+    }
+
+    VA_CALL(o,
+            {
+                free(*p_entrypoints);
+                *p_entrypoints = NULL;
+            },
+            vaQueryConfigEntrypoints, dpy,
+            VAProfileNone, *p_entrypoints, &num_entrypoints);
+    *p_num_entrypoints = num_entrypoints;
+
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_IsVideoProcFilterAvailable(vlc_object_t *o, VADisplay dpy,
+                                  VAContextID ctx, VAProcFilterType filter)
+{
+    VAProcFilterType    filters[VAProcFilterCount];
+    unsigned int        num_filters = VAProcFilterCount;
+
+    VA_CALL(o, {}, vaQueryVideoProcFilters, dpy, ctx, filters, &num_filters);
+    for (unsigned int i = 0; i < num_filters; ++i)
+        if (filter == filters[i])
+            return VLC_SUCCESS;
+    return VLC_EGENERIC;
+}
+
+int
+vlc_va_QueryVideoProcFilterCaps(vlc_object_t *o, VADisplay dpy,
+                                VAContextID ctx, VAProcFilterType filter,
+                                void *caps, unsigned int *p_num_caps)
+{
+    VA_CALL(o, {}, vaQueryVideoProcFilterCaps, dpy,
+            ctx, filter, caps, p_num_caps);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_QueryVideoProcPipelineCaps(vlc_object_t *o, VADisplay dpy,
+                                  VAContextID ctx, VABufferID *filters,
+                                  unsigned int num_filters,
+                                  VAProcPipelineCaps *pipeline_caps)
+{
+    VA_CALL(o, {}, vaQueryVideoProcPipelineCaps, dpy,
+            ctx, filters, num_filters, pipeline_caps);
+    return VLC_SUCCESS;
+}
+
+/*******************
+ * VAAPI rendering *
+ *******************/
+
+int
+vlc_va_BeginPicture(vlc_object_t *o, VADisplay dpy,
+                    VAContextID ctx, VASurfaceID surface)
+{
+    VA_CALL(o, {}, vaBeginPicture, dpy, ctx, surface);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_RenderPicture(vlc_object_t *o, VADisplay dpy, VAContextID ctx,
+                     VABufferID *buffers, int num_buffers)
+{
+    VA_CALL(o, {}, vaRenderPicture, dpy, ctx, buffers, num_buffers);
+    return VLC_SUCCESS;
+}
+
+int
+vlc_va_EndPicture(vlc_object_t *o, VADisplay dpy, VAContextID ctx)
+{
+    VA_CALL(o, {}, vaEndPicture, dpy, ctx);
+    return VLC_SUCCESS;
+}
+
+/**********************
+ * VAAPI image format *
+ **********************/
 
 VAImageFormat *vlc_va_GetImageFormats(VADisplay va_dpy, int *num_formats, int spu)
 {
@@ -135,9 +348,9 @@ int vlc_va_FindImageFormat(VADisplay va_dpy, VAImageFormat *va_format,
     return VA_STATUS_ERROR_UNKNOWN;
 }
 
-/*
- * Picture
- */
+/****************
+ * VAAPI images *
+ ****************/
 
 int vlc_va_TestPutImage(VADisplay va_dpy, VAImageFormat *va_format,
                         VASurfaceID va_surface_id, int *derive,
@@ -174,9 +387,9 @@ int vlc_va_TestPutImage(VADisplay va_dpy, VAImageFormat *va_format,
     return VA_STATUS_SUCCESS;
 }
 
-/*
- *
- */
+/***********
+ * Picture *
+ ***********/
 
 static void PictureSysDestroyVAAPI(picture_sys_t *sys)
 {
@@ -200,7 +413,7 @@ static int PictureNew(VADisplay va_dpy,
                       picture_t **picp, VASurfaceID id,
                       VASurfaceID *render_targets,
                       int num_render_targets,
-                      unsigned *p_render_targets_ref_cnt)
+                      unsigned int *p_render_targets_ref_cnt)
 {
     picture_sys_t *sys = malloc(sizeof (*sys));
     if (unlikely(sys == NULL))
@@ -230,11 +443,12 @@ static int PictureNew(VADisplay va_dpy,
 picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned requested_count,
                                  const video_format_t *restrict fmt, unsigned int va_rt_format)
 {
-    picture_t   *pics[requested_count];
-    VASurfaceID *va_surface_ids = malloc(requested_count * sizeof(VASurfaceID));
-    unsigned    *p_va_surface_ids_ref_cnt = malloc(sizeof(unsigned));
-    VAStatus     status;
-    unsigned     count;
+    picture_t           *pics[requested_count];
+    VASurfaceID         *va_surface_ids =
+        malloc(requested_count * sizeof(VASurfaceID));
+    unsigned int        *p_va_surface_ids_ref_cnt = malloc(sizeof(unsigned int));
+    VAStatus            status;
+    unsigned            count;
 
     if (!va_surface_ids || !p_va_surface_ids_ref_cnt)
     {
@@ -290,9 +504,9 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
     return pool;
 }
 
-/*
- *
- */
+/****************
+ * VAAPI images *
+ ****************/
 
 static int CopyPicture(vlc_object_t *o,
                        VAImage *va_image, uint8_t *base,
@@ -399,11 +613,11 @@ int vlc_va_PutSurface(vlc_object_t *o, VADisplay va_dpy,
     return status;
 }
 
-/*
- * Subpictures
- */
+/**************
+ * Subpicture *
+ **************/
 
-  vlc_va_subpicture *vlc_va_SubpictureNew(void)
+vlc_va_subpicture *vlc_va_SubpictureNew(void)
 {
     vlc_va_subpicture *spu = calloc(1, sizeof(*spu));
     if (spu) {
