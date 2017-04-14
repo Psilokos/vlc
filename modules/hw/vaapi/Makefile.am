@@ -18,8 +18,22 @@ libvaapi_deinterlace_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
 libvaapi_deinterlace_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
 libvaapi_deinterlace_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_vaapi_instance.la
 
+libvaapi_denoise_plugin_la_SOURCES = hw/vaapi/denoise_sharpen.c hw/vaapi/va_filter.h	\
+				     hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
+libvaapi_denoise_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DMODULE_NAME_IS_denoise
+libvaapi_denoise_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
+libvaapi_denoise_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_vaapi_instance.la
+
+libvaapi_sharpen_plugin_la_SOURCES = hw/vaapi/denoise_sharpen.c hw/vaapi/va_filter.h	\
+				     hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
+libvaapi_sharpen_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DMODULE_NAME_IS_sharpen
+libvaapi_sharpen_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
+libvaapi_sharpen_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_vaapi_instance.la
+
 if HAVE_VAAPI_X11
 vaapi_LTLIBRARIES = libvlc_vaapi_instance.la		\
 		    libvaapi_chroma_plugin.la		\
-		    libvaapi_deinterlace_plugin.la
+		    libvaapi_deinterlace_plugin.la	\
+		    libvaapi_denoise_plugin.la		\
+		    libvaapi_sharpen_plugin.la
 endif
