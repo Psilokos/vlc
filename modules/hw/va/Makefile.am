@@ -17,6 +17,16 @@ libva_deinterlace_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
 libva_deinterlace_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
 libva_deinterlace_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_va_instance.la
 
+libva_denoise_plugin_la_SOURCES = hw/va/denoise_sharpen.c hw/va/va_filter.h hw/va/vlc_va.c hw/va/vlc_va.h
+libva_denoise_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DMODULE_STRING=\"denoise\" -DMODULE_NAME_IS_denoise
+libva_denoise_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
+libva_denoise_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_va_instance.la
+
+libva_sharpen_plugin_la_SOURCES = hw/va/denoise_sharpen.c hw/va/va_filter.h hw/va/vlc_va.c hw/va/vlc_va.h
+libva_sharpen_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DMODULE_STRING=\"sharpen\" -DMODULE_NAME_IS_sharpen
+libva_sharpen_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
+libva_sharpen_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_va_instance.la
+
 libva_xcb_display_plugin_la_SOURCES = hw/va/xcb_display.c hw/va/vlc_va.c hw/va/vlc_va.h
 libva_xcb_display_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/video_output/xcb
 libva_xcb_display_plugin_la_CFLAGS = $(AM_CFLAGS) $(XCB_CFLAGS) $(LIBVA_CFLAGS)
@@ -27,5 +37,7 @@ libva_xcb_display_plugin_la_LIBADD = libvlc_xcb_events.la \
 if HAVE_VAAPI_X11
 va_LTLIBRARIES = libvlc_va_instance.la		\
 		 libva_chroma_plugin.la		\
-		 libva_deinterlace_plugin.la
+		 libva_deinterlace_plugin.la	\
+		 libva_denoise_plugin.la	\
+		 libva_sharpen_plugin.la
 endif
