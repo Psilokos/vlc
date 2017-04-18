@@ -717,6 +717,10 @@ static picture_t *VoutVideoFilterInteractiveNewPicture(filter_t *filter)
 {
     vout_thread_t *vout = filter->owner.sys;
 
+    /* This can happen when I420 is used as middle-man */
+    if (filter->fmt_out.video.i_chroma != vout->p->filter.format.i_chroma)
+        return picture_NewFromFormat(&filter->fmt_out.video);
+
     picture_t *picture = picture_pool_Get(vout->p->private_pool);
     if (picture) {
         picture_Reset(picture);
@@ -758,6 +762,37 @@ typedef struct {
     char           *name;
     config_chain_t *cfg;
 } vout_filter_t;
+
+static int ThreadFilterInsertI420(vout_thread_t *vout, filter_chain_t *chain,
+                                     const char *name)
+{
+    /* This function is called when a filter insertion failed. This function
+     * will try to append a converter to convert from video.i_chroma to I420.
+     * This chroma is used as middle-man since it's the most used by VLC
+     * filters. In case of success, the filter that failed should be inserted
+     * again. At the end of the chains, a I420 to video.i_chroma converter will
+     * be automatically added, see es_format_IsSimilar() test at the end of
+     * ThreadChangeFilters().  */
+
+    const es_format_t *fmt_in = filter_chain_GetFmtOut(chain);
+    if (fmt_in->video.i_chroma == VLC_CODEC_I420)
+        return VLC_EGENERIC;
+
+    vlc_fourcc_t i_orig_chroma = fmt_in->video.i_chroma;
+    es_format_t fmt_middleman = *fmt_in;
+    fmt_middleman.video.i_chroma = VLC_CODEC_I420;
+    if (filter_chain_AppendConverter(chain, fmt_in, &fmt_middleman) != 0)
+    {
+        msg_Err(vout, "Failed to convert from '%4.4s' to '%4.4s'",
+                (const char *) &i_orig_chroma,
+                (const char *) &fmt_middleman.video.i_chroma);
+        return VLC_EGENERIC;
+    }
+    msg_Dbg(vout, "adding '%4.4s' -> '%4.4s' derive converter needed by '%s'"
+            " filter", (const char *) &i_orig_chroma,
+            (const char *) &fmt_middleman.video.i_chroma, name);
+    return VLC_SUCCESS;
+}
 
 static void ThreadChangeFilters(vout_thread_t *vout,
                                 const video_format_t *source,
@@ -835,12 +870,18 @@ static void ThreadChangeFilters(vout_thread_t *vout,
         for (size_t i = 0; i < vlc_array_count(array); i++) {
             vout_filter_t *e = vlc_array_item_at_index(array, i);
             msg_Dbg(vout, "Adding '%s' as %s", e->name, a == 0 ? "static" : "interactive");
-            filter_t *filter = filter_chain_AppendFilter(chain, e->name, e->cfg,
-                               NULL, NULL);
+            filter_t * filter = filter_chain_AppendFilter(chain, e->name, e->cfg,
+                                                          NULL, NULL);
             if (!filter)
             {
-                msg_Err(vout, "Failed to add filter '%s'", e->name);
-                config_ChainDestroy(e->cfg);
+                if (ThreadFilterInsertI420(vout, chain, e->name) != VLC_SUCCESS
+                 || !filter_chain_AppendFilter(chain, e->name, e->cfg, NULL, NULL))
+                {
+                    msg_Err(vout, "Failed to add filter '%s'", e->name);
+                    config_ChainDestroy(e->cfg);
+                }
+                else if (a == 1) /* Add callbacks for interactive filters */
+                    ThreadAddFilterCallbacks(vout, filter);
             }
             else if (a == 1) /* Add callbacks for interactive filters */
                 ThreadAddFilterCallbacks(vout, filter);
