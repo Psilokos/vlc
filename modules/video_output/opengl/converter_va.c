@@ -239,7 +239,9 @@ tc_vaegl_release(const opengl_tex_converter_t *tc)
     if (priv->last.pic != NULL)
         vaegl_release_last_pic(priv);
 
-    vlc_va_Terminate(priv->vadpy);
+    if (vlc_va_ReleaseInstance())
+        msg_Err(tc->gl, "no VA instance to release");
+
     free(tc->priv);
 }
 
@@ -336,6 +338,12 @@ fprintf(stderr, "vadpy: %p\n", priv->vadpy); /* XXX */
     tc->priv              = priv;
     tc->chroma            = VLC_CODEC_VAAPI_OPAQUE;
     tc->pf_get_pool       = tc_va_get_pool;
+
+    if (vlc_va_CreateInstance(priv->vadpy))
+    {
+        msg_Err(tc->gl, "unable to create VA instance");
+        goto error;
+    }
 
 fprintf(stderr, "opengl_tex_converter_va_init !\n"); /* XXX */
     return fshader;
