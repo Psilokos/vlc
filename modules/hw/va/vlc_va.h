@@ -47,6 +47,20 @@
         }                                               \
     } while (0)
 
+/**************************
+ * VA instance management *
+ **************************/
+
+/* Allocates the VA instance and sets the reference counter to 1 */
+int     vlc_va_CreateInstance(VADisplay dpy);
+
+/* Retrieve the VA instance and increases the reference counter by 1 */
+void    vlc_va_GetInstance(VADisplay *dpy);
+
+/* Decreases the reference counter by 1 and frees the instance if that counter
+   reaches 0. */
+int     vlc_va_ReleaseInstance(void);
+
 /*****************
  * VAAPI display *
  *****************/
