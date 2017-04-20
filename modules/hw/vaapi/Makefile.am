@@ -7,6 +7,11 @@ libvlc_vaapi_instance_la_LDFLAGS =			\
 				   -no-undefined	\
 				   -version-info 0:0:0
 
+libvaapi_adjust_plugin_la_SOURCES = hw/vaapi/adjust.c hw/vaapi/va_filter.h hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h
+libvaapi_adjust_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
+libvaapi_adjust_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
+libvaapi_adjust_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_vaapi_instance.la
+
 libvaapi_chroma_plugin_la_SOURCES = hw/vaapi/chroma.c hw/vaapi/vlc_vaapi.c hw/vaapi/vlc_vaapi.h	\
 				    video_chroma/copy.c video_chroma/copy.h
 libvaapi_chroma_plugin_la_CFLAGS = $(AM_CFLAGS) $(LIBVA_CFLAGS)
@@ -32,6 +37,7 @@ libvaapi_sharpen_plugin_la_LIBADD = $(AM_LIBADD) $(LIBVA_LIBS) libvlc_vaapi_inst
 
 if HAVE_VAAPI_X11
 vaapi_LTLIBRARIES = libvlc_vaapi_instance.la		\
+		    libvaapi_adjust_plugin.la		\
 		    libvaapi_chroma_plugin.la		\
 		    libvaapi_deinterlace_plugin.la	\
 		    libvaapi_denoise_plugin.la		\
