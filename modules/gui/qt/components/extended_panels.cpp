@@ -139,6 +139,9 @@ ExtVideo::ExtVideo( intf_thread_t *_p_intf, QTabWidget *_parent ) :
 
     SETUP_VFILTER( psychedelic )
 
+    SETUP_VFILTER( denoise )
+    SETUP_VFILTER_OPTION( denoiseSigmaSlider, valueChanged( int ) )
+
     SETUP_VFILTER( sharpen )
     SETUP_VFILTER_OPTION( sharpenSigmaSlider, valueChanged( int ) )
 

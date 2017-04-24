@@ -319,6 +319,50 @@
       </layout>
      </widget>
     </item>
+    <item row="3" column="1">
+     <widget class="QGroupBox" name="denoiseEnable">
+      <property name="title">
+       <string>Denoise</string>
+      </property>
+      <property name="checkable">
+       <bool>true</bool>
+      </property>
+      <property name="checked">
+       <bool>false</bool>
+      </property>
+      <layout class="QGridLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_33">
+         <property name="text">
+          <string>Sigma</string>
+         </property>
+         <property name="buddy">
+          <cstring>denoiseSigmaSlider</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QSlider" name="denoiseSigmaSlider">
+         <property name="maximum">
+          <number>200</number>
+         </property>
+         <property name="pageStep">
+          <number>10</number>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="tickPosition">
+          <enum>QSlider::TicksBelow</enum>
+         </property>
+         <property name="tickInterval">
+          <number>50</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="tab_3">
@@ -1689,6 +1733,8 @@
   <tabstop>gradfunRadiusSlider</tabstop>
   <tabstop>grainEnable</tabstop>
   <tabstop>grainVarianceSlider</tabstop>
+  <tabstop>denoiseEnable</tabstop>
+  <tabstop>denoiseSigmaSlider</tabstop>
   <tabstop>cropTopPx</tabstop>
   <tabstop>cropBotPx</tabstop>
   <tabstop>topBotCropSync</tabstop>
