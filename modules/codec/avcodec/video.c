@@ -1421,17 +1421,20 @@ static enum PixelFormat ffmpeg_GetFormat( AVCodecContext *p_context,
     enum PixelFormat swfmt = avcodec_default_get_format(p_context, pi_fmt);
     bool can_hwaccel = false;
 
-    for( size_t i = 0; pi_fmt[i] != AV_PIX_FMT_NONE; i++ )
+    if (p_context->width > 0 && p_context->height > 0)
     {
-        const AVPixFmtDescriptor *dsc = av_pix_fmt_desc_get(pi_fmt[i]);
-        if (dsc == NULL)
-            continue;
-        bool hwaccel = (dsc->flags & AV_PIX_FMT_FLAG_HWACCEL) != 0;
+        for( size_t i = 0; pi_fmt[i] != AV_PIX_FMT_NONE; i++ )
+        {
+            const AVPixFmtDescriptor *dsc = av_pix_fmt_desc_get(pi_fmt[i]);
+            if (dsc == NULL)
+                continue;
+            bool hwaccel = (dsc->flags & AV_PIX_FMT_FLAG_HWACCEL) != 0;
 
-        msg_Dbg( p_dec, "available %sware decoder output format %d (%s)",
-                 hwaccel ? "hard" : "soft", pi_fmt[i], dsc->name );
-        if (hwaccel)
-            can_hwaccel = true;
+            msg_Dbg( p_dec, "available %sware decoder output format %d (%s)",
+                     hwaccel ? "hard" : "soft", pi_fmt[i], dsc->name );
+            if (hwaccel)
+                can_hwaccel = true;
+        }
     }
 
     /* If the format did not actually change (e.g. seeking), try to reuse the
@@ -1485,11 +1488,6 @@ static enum PixelFormat ffmpeg_GetFormat( AVCodecContext *p_context,
         p_dec->fmt_out.video.i_chroma = vlc_va_GetChroma(hwfmt, swfmt);
         if (p_dec->fmt_out.video.i_chroma == 0)
             continue; /* Unknown brand of hardware acceleration */
-        if (p_context->width == 0 || p_context->height == 0)
-        {   /* should never happen */
-            msg_Err(p_dec, "unspecified video dimensions");
-            continue;
-        }
         if (lavc_UpdateVideoFormat(p_dec, p_context, hwfmt, swfmt))
             continue; /* Unsupported brand of hardware acceleration */
         post_mt(p_sys);
