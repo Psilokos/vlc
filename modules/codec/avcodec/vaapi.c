@@ -235,6 +235,7 @@ static int OpaqueCreate(vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_
     (void) fmt;
     (void) p_sys;
 
+    fprintf(stderr, "VA: OPAQUE ? %p\n", p_sys);
     /* The picture must be allocated by the vout */
     if( p_sys == NULL || p_sys->va_dpy == NULL )
         return VLC_EGENERIC;
@@ -283,6 +284,7 @@ static int OpaqueCreate(vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_
     va->get = OpaqueGet;
     va->release = NULL;
     va->extract = OpaqueExtract;
+fprintf(stderr, "VA: OK !\n");
     return VLC_SUCCESS;
 
 error:
@@ -291,6 +293,7 @@ error:
     if (sys->hw_ctx.config_id != VA_INVALID_ID)
         vaDestroyConfig(sys->hw_ctx.display, sys->hw_ctx.config_id);
     free( sys );
+fprintf(stderr, "VA: KO !\n");
     return VLC_EGENERIC;
 }
 
@@ -505,9 +508,11 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
 #ifdef VLC_VA_BACKEND_XLIB
     if( p_sys != NULL ) /* The picture is already allocated by the vout */
         return VLC_EGENERIC;
+    fprintf(stderr, "VA: X11 ? %p\n", p_sys);
     if( !vlc_xlib_init( VLC_OBJECT(va) ) )
     {
         msg_Warn( va, "Ignoring VA-X11 API" );
+    fprintf(stderr, "VA: KO !\n");
         return VLC_EGENERIC;
     }
 #endif
@@ -627,6 +632,7 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
     va->get = Get;
     va->release = Release;
     va->extract = Extract;
+fprintf(stderr, "VA: OK !\n");
     return VLC_SUCCESS;
 
 error:
@@ -648,6 +654,7 @@ error:
         vlc_close( sys->drm_fd );
 #endif
     free( sys );
+fprintf(stderr, "VA: KO !\n");
     return VLC_EGENERIC;
 }
 #endif
