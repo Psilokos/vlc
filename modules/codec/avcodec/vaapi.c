@@ -1,6 +1,7 @@
 /*****************************************************************************
  * vaapi.c: VAAPI helpers for the libavcodec decoder
  *****************************************************************************
+ * Copyright (C) 2017 VLC authors and VideoLAN
  * Copyright (C) 2009-2010 Laurent Aimar
  * Copyright (C) 2012-2014 Rémi Denis-Courmont
  *
@@ -48,35 +49,40 @@
 
 #include "avcodec.h"
 #include "va.h"
-#include "../../video_chroma/copy.h"
+
+#include "../../hw/vaapi/vlc_vaapi.h"
 
 #ifndef VA_SURFACE_ATTRIB_SETTABLE
 #define vaCreateSurfaces(d, f, w, h, s, ns, a, na) \
     vaCreateSurfaces(d, w, h, f, ns, s)
 #endif
 
+struct pic_ctx
+{
+    struct vlc_vaapi_pic_ctx s;
+    void *priv;
+    unsigned idx;
+};
+
 struct vlc_va_sys_t
 {
 #ifdef VLC_VA_BACKEND_XLIB
-        Display  *p_display_x11;
+    Display  *p_display_x11;
 #endif
 #ifdef VLC_VA_BACKEND_DRM
-        int       drm_fd;
+    int       drm_fd;
 #endif
     struct vaapi_context hw_ctx;
 
     /* */
     vlc_mutex_t  lock;
-    int          width;
-    int          height;
-    VAImageFormat format;
+    vlc_cond_t   cond;
 
-    copy_cache_t image_cache;
-
-    bool         do_derive;
     uint8_t      count;
     uint32_t     available;
+    bool         delete;
     VASurfaceID  surfaces[32];
+    struct pic_ctx pic_ctxs[32];
 };
 
 static int GetVaProfile(AVCodecContext *ctx, VAProfile *va_profile,
@@ -185,112 +191,64 @@ static VAConfigID CreateVaConfig(VADisplay dpy, VAProfile i_profile)
     return va_config_id;
 }
 
-static int Extract( vlc_va_t *va, picture_t *p_picture, uint8_t *data )
+static int Extract(vlc_va_t *va, picture_t *pic, uint8_t *data)
 {
-    vlc_va_sys_t *sys = va->sys;
-    VASurfaceID surface = (VASurfaceID)(uintptr_t)data;
-    VAImage image;
-    int ret = VLC_EGENERIC;
-
-#if VA_CHECK_VERSION(0,31,0)
-    if (vaSyncSurface(sys->hw_ctx.display, surface))
-#else
-    if (vaSyncSurface(sys->hw_ctx.display, sys->hw_ctx.context_id, surface))
-#endif
-        return VLC_EGENERIC;
-
-    if (!sys->do_derive || vaDeriveImage(sys->hw_ctx.display, surface, &image))
-    {   /* Fallback if image derivation is not supported */
-        if (vaCreateImage(sys->hw_ctx.display, &sys->format, sys->width,
-                          sys->height, &image))
-            return VLC_EGENERIC;
-        if (vaGetImage(sys->hw_ctx.display, surface, 0, 0, sys->width,
-                       sys->height, image.image_id))
-            goto error;
-    }
-
-    void *p_base;
-    if (vaMapBuffer(sys->hw_ctx.display, image.buf, &p_base))
-        goto error;
-
-    const unsigned i_fourcc = sys->format.fourcc;
-    if( i_fourcc == VA_FOURCC_YV12 ||
-        i_fourcc == VA_FOURCC_IYUV )
-    {
-        bool b_swap_uv = i_fourcc == VA_FOURCC_IYUV;
-        uint8_t *pp_plane[3];
-        size_t  pi_pitch[3];
-
-        for( int i = 0; i < 3; i++ )
-        {
-            const int i_src_plane = (b_swap_uv && i != 0) ?  (3 - i) : i;
-            pp_plane[i] = (uint8_t*)p_base + image.offsets[i_src_plane];
-            pi_pitch[i] = image.pitches[i_src_plane];
-        }
-        CopyFromYv12ToYv12( p_picture, pp_plane, pi_pitch,
-                            sys->height, &sys->image_cache );
-    }
-    else
-    {
-        assert( i_fourcc == VA_FOURCC_NV12 );
-        uint8_t *pp_plane[2];
-        size_t  pi_pitch[2];
-
-        for( int i = 0; i < 2; i++ )
-        {
-            pp_plane[i] = (uint8_t*)p_base + image.offsets[i];
-            pi_pitch[i] = image.pitches[i];
-        }
-        CopyFromNv12ToYv12( p_picture, pp_plane, pi_pitch,
-                            sys->height, &sys->image_cache );
-    }
-
-    vaUnmapBuffer(sys->hw_ctx.display, image.buf);
-    ret = VLC_SUCCESS;
-error:
-    vaDestroyImage(sys->hw_ctx.display, image.image_id);
-    return ret;
+    (void) va; (void) pic; (void) data;
+    return VLC_SUCCESS;
 }
 
 static int Get( vlc_va_t *va, picture_t *pic, uint8_t **data )
 {
     vlc_va_sys_t *sys = va->sys;
-    unsigned i = sys->count;
 
     vlc_mutex_lock( &sys->lock );
-    if (sys->available)
-    {
-        i = ctz(sys->available);
-        sys->available &= ~(1 << i);
-    }
+    while (!sys->available)
+        vlc_cond_wait(&sys->cond, &sys->lock);
+
+    unsigned i = ctz(sys->available);
+    sys->available &= ~(1 << i);
+
     vlc_mutex_unlock( &sys->lock );
 
-    if( i >= sys->count )
-        return VLC_ENOMEM;
-
-    VASurfaceID *surface = &sys->surfaces[i];
-
-    pic->context = surface;
-    *data = (void *)(uintptr_t)*surface;
+    pic->context = &sys->pic_ctxs[i];
+    *data = (void *)(uintptr_t)sys->pic_ctxs[i].s.surface;
     return VLC_SUCCESS;
 }
 
-static void Release( void *opaque, uint8_t *data )
+static void DeleteSysLocked(vlc_va_sys_t *sys)
 {
-    (void) data;
-    picture_t *pic = opaque;
-    VASurfaceID *surface = pic->context;
-    vlc_va_sys_t *sys = (void *)((((uintptr_t)surface)
-        - offsetof(vlc_va_sys_t, surfaces)) & ~(sizeof (sys->surfaces) - 1));
-    unsigned i = surface - sys->surfaces;
+    vlc_mutex_unlock(&sys->lock);
 
-    vlc_mutex_lock( &sys->lock );
+    vlc_mutex_destroy(&sys->lock);
+    vlc_cond_destroy(&sys->cond);
+
+    vaDestroyContext(sys->hw_ctx.display, sys->hw_ctx.context_id);
+    vaDestroySurfaces(sys->hw_ctx.display, sys->surfaces, sys->count);
+    vaDestroyConfig(sys->hw_ctx.display, sys->hw_ctx.config_id);
+    vlc_vaapi_ReleaseInstance(sys->hw_ctx.display);
+#ifdef VLC_VA_BACKEND_XLIB
+    XCloseDisplay(sys->p_display_x11);
+#endif
+#ifdef VLC_VA_BACKEND_DRM
+    vlc_close(sys->drm_fd);
+#endif
+    free(sys);
+}
+
+static void PicContextDestroyCb(void *opaque)
+{
+    struct pic_ctx *ctx = opaque;
+    vlc_va_sys_t *sys = ctx->priv;
+
+    unsigned i = ctx->idx;
+    vlc_mutex_lock(&sys->lock);
     assert(((sys->available >> i) & 1) == 0);
     sys->available |= 1 << i;
-    vlc_mutex_unlock( &sys->lock );
-
-    pic->context = NULL;
-    picture_Release(pic);
+    vlc_cond_signal(&sys->cond);
+    if (sys->available == (uint32_t)((1 << sys->count) - 1) && sys->delete)
+        DeleteSysLocked(sys);
+    else
+        vlc_mutex_unlock( &sys->lock );
 }
 
 static void Delete( vlc_va_t *va, AVCodecContext *avctx )
@@ -298,91 +256,15 @@ static void Delete( vlc_va_t *va, AVCodecContext *avctx )
     vlc_va_sys_t *sys = va->sys;
 
     (void) avctx;
-
-    vlc_mutex_destroy(&sys->lock);
-    CopyCleanCache(&sys->image_cache);
-
-    vaDestroyContext(sys->hw_ctx.display, sys->hw_ctx.context_id);
-    vaDestroySurfaces(sys->hw_ctx.display, sys->surfaces, sys->count);
-    vaDestroyConfig(sys->hw_ctx.display, sys->hw_ctx.config_id);
-    vaTerminate(sys->hw_ctx.display);
-#ifdef VLC_VA_BACKEND_XLIB
-    XCloseDisplay( sys->p_display_x11 );
-#endif
-#ifdef VLC_VA_BACKEND_DRM
-    vlc_close( sys->drm_fd );
-#endif
-    free( sys );
-}
-
-/** Finds a supported image chroma */
-static int FindFormat(vlc_va_sys_t *sys)
-{
-    int count = vaMaxNumImageFormats(sys->hw_ctx.display);
-
-    VAImageFormat *fmts = malloc(count * sizeof (*fmts));
-    if (unlikely(fmts == NULL))
-        return VLC_ENOMEM;
-
-    if (vaQueryImageFormats(sys->hw_ctx.display, fmts, &count))
+    vlc_mutex_lock(&sys->lock);
+    if (sys->available == (uint32_t)((1 << sys->count) - 1))
+        DeleteSysLocked(sys);
+    else
     {
-        free(fmts);
-        return VLC_EGENERIC;
+        /* Really Delete when all pictures are released */
+        sys->delete = true;
+        vlc_mutex_unlock(&sys->lock);
     }
-
-    sys->format.fourcc = 0;
-
-    for (int i = 0; i < count; i++)
-    {
-        unsigned fourcc = fmts[i].fourcc;
-
-        if (fourcc != VA_FOURCC_YV12 && fourcc != VA_FOURCC_IYUV
-         && fourcc != VA_FOURCC_NV12)
-            continue;
-
-        VAImage image;
-
-        if (vaCreateImage(sys->hw_ctx.display, &fmts[i], sys->width,
-                          sys->height, &image))
-            continue;
-
-        /* Validate that vaGetImage works with this format */
-        int val = vaGetImage(sys->hw_ctx.display, sys->surfaces[0], 0, 0,
-                             sys->width, sys->height, image.image_id);
-
-        vaDestroyImage(sys->hw_ctx.display, image.image_id);
-
-        if (val != VA_STATUS_SUCCESS)
-            continue;
-
-        /* Mark NV12 as supported, but favor other formats first */
-        sys->format = fmts[i];
-        if (fourcc != VA_FOURCC_NV12)
-            break;
-    }
-
-    free(fmts);
-
-    if (sys->format.fourcc == 0)
-        return VLC_EGENERIC; /* None of the formats work */
-
-    VAImage image;
-
-    /* Use vaDerive() iif it supports the best selected format */
-    sys->do_derive = false;
-
-    if (vaDeriveImage(sys->hw_ctx.display, sys->surfaces[0],
-                      &image) == VA_STATUS_SUCCESS)
-    {
-        if (image.format.fourcc == sys->format.fourcc)
-        {
-            sys->do_derive = true;
-            sys->format = image.format;
-        }
-        vaDestroyImage(sys->hw_ctx.display, image.image_id);
-    }
-
-    return VLC_SUCCESS;
 }
 
 static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
@@ -393,6 +275,16 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
 
     (void) fmt;
     (void) p_sys;
+
+    VADisplay vout_dpy = vlc_vaapi_GetInstance();
+    if (vout_dpy != NULL)
+    {
+        /* There is a vout handling vaapi surfaces but the dr va failed, we
+         * need to fail in order to fallback to a sw decoder */
+        vlc_vaapi_ReleaseInstance(vout_dpy);
+        return VLC_EGENERIC;
+    }
+
 #ifdef VLC_VA_BACKEND_XLIB
     if( !vlc_xlib_init( VLC_OBJECT(va) ) )
     {
@@ -407,25 +299,19 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
         return VLC_EGENERIC;
 
     vlc_va_sys_t *sys;
-    void *mem;
 
-    assert(popcount(sizeof (sys->surfaces)) == 1);
-    if (unlikely(posix_memalign(&mem, sizeof (sys->surfaces), sizeof (*sys))))
+    sys = malloc(sizeof(vlc_va_sys_t));
+    if (!sys)
        return VLC_ENOMEM;
-
-    sys = mem;
     memset(sys, 0, sizeof (*sys));
 
     /* */
     sys->hw_ctx.display = NULL;
     sys->hw_ctx.config_id = VA_INVALID_ID;
     sys->hw_ctx.context_id = VA_INVALID_ID;
-    sys->width = ctx->coded_width;
-    sys->height = ctx->coded_height;
     sys->count = count;
     sys->available = (1 << sys->count) - 1;
     assert(count < sizeof (sys->available) * CHAR_BIT);
-    assert(count * sizeof (sys->surfaces[0]) <= sizeof (sys->surfaces));
 
     /* Create a VA display */
 #ifdef VLC_VA_BACKEND_XLIB
@@ -485,9 +371,7 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
     if (vaCreateSurfaces(sys->hw_ctx.display, VA_RT_FORMAT_YUV420,
                          ctx->coded_width, ctx->coded_height,
                          sys->surfaces, sys->count, NULL, 0))
-    {
         goto error;
-    }
 
     /* Create a context */
     if (vaCreateContext(sys->hw_ctx.display, sys->hw_ctx.config_id,
@@ -499,22 +383,28 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
         goto error;
     }
 
-    if (FindFormat(sys))
-        goto error;
+    for (unsigned i = 0; i < count; ++i)
+    {
+        sys->pic_ctxs[i].s.destroy = PicContextDestroyCb;
+        sys->pic_ctxs[i].s.surface = sys->surfaces[i];
+        sys->pic_ctxs[i].priv = sys;
+        sys->pic_ctxs[i].idx = i;
+    }
 
-    if (unlikely(CopyInitCache(&sys->image_cache, ctx->coded_width)))
+    if (vlc_vaapi_SetInstance(sys->hw_ctx.display))
+    {
+        msg_Err(va, "VAAPI instance already in use");
         goto error;
+    }
 
     vlc_mutex_init(&sys->lock);
-
-    msg_Dbg(va, "using %s image format 0x%08x",
-            sys->do_derive ? "derive" : "get", sys->format.fourcc);
+    vlc_cond_init(&sys->cond);
 
     ctx->hwaccel_context = &sys->hw_ctx;
     va->sys = sys;
     va->description = vaQueryVendorString(sys->hw_ctx.display);
     va->get = Get;
-    va->release = Release;
+    va->release = NULL;
     va->extract = Extract;
     return VLC_SUCCESS;
 
