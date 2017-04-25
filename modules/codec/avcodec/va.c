@@ -48,7 +48,6 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
                 default:
                     return VLC_CODEC_D3D9_OPAQUE;
             }
-            break;
 
 #if LIBAVUTIL_VERSION_CHECK(54, 13, 1, 24, 100)
         case AV_PIX_FMT_D3D11VA_VLD:
@@ -59,7 +58,6 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
                 default:
                     return VLC_CODEC_D3D11_OPAQUE;
             }
-        break;
 #endif
 #if (LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(52, 4, 0))
         case AV_PIX_FMT_VDPAU:
@@ -77,7 +75,6 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
                 default:
                     return 0;
             }
-            break;
 #endif
         default:
             return 0;
