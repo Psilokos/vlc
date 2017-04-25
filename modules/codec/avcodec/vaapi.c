@@ -79,6 +79,112 @@ struct vlc_va_sys_t
     VASurfaceID  surfaces[32];
 };
 
+static int GetVaProfile(AVCodecContext *ctx, VAProfile *va_profile,
+                      unsigned *pic_count)
+{
+    VAProfile i_profile;
+    unsigned count = 3;
+
+    switch(ctx->codec_id)
+    {
+    case AV_CODEC_ID_MPEG1VIDEO:
+    case AV_CODEC_ID_MPEG2VIDEO:
+        i_profile = VAProfileMPEG2Main;
+        count = 4;
+        break;
+    case AV_CODEC_ID_MPEG4:
+        i_profile = VAProfileMPEG4AdvancedSimple;
+        break;
+    case AV_CODEC_ID_WMV3:
+        i_profile = VAProfileVC1Main;
+        break;
+    case AV_CODEC_ID_VC1:
+        i_profile = VAProfileVC1Advanced;
+        break;
+    case AV_CODEC_ID_H264:
+        i_profile = VAProfileH264High;
+        count = 18;
+        break;
+    case AV_CODEC_ID_HEVC:
+        if (ctx->profile == FF_PROFILE_HEVC_MAIN)
+            i_profile = VAProfileHEVCMain;
+        else if (ctx->profile == FF_PROFILE_HEVC_MAIN_10)
+            i_profile = VAProfileHEVCMain10;
+        else
+            return VLC_EGENERIC;
+        count = 18;
+        break;
+    case AV_CODEC_ID_VP8:
+        i_profile = VAProfileVP8Version0_3;
+        count = 5;
+        break;
+    case AV_CODEC_ID_VP9:
+        if (ctx->profile == FF_PROFILE_VP9_0)
+            i_profile = VAProfileVP9Profile0;
+#if VA_CHECK_VERSION( 0, 39, 0 )
+        else if (ctx->profile == FF_PROFILE_VP9_2)
+            i_profile = VAProfileVP9Profile2;
+#endif
+        else
+            return VLC_EGENERIC;
+        count = 10;
+        break;
+    default:
+        return VLC_EGENERIC;
+    }
+
+    *va_profile = i_profile;
+    *pic_count = count + ctx->thread_count;
+    return VLC_SUCCESS;
+}
+
+static bool IsVaProfileSupported(VADisplay dpy, VAProfile i_profile)
+{
+    /* Check if the selected profile is supported */
+    int i_profiles_nb = vaMaxNumProfiles(dpy);
+    if (i_profiles_nb < 0)
+        return false;
+    VAProfile *p_profiles_list = calloc(i_profiles_nb, sizeof(VAProfile));
+    if (!p_profiles_list)
+        return false;
+
+    bool b_supported_profile = false;
+    if (vaQueryConfigProfiles(dpy, p_profiles_list,
+                              &i_profiles_nb) == VA_STATUS_SUCCESS)
+    {
+        for (int i = 0; i < i_profiles_nb; i++)
+        {
+            if (p_profiles_list[i] == i_profile)
+            {
+                b_supported_profile = true;
+                break;
+            }
+        }
+    }
+    free(p_profiles_list);
+    return b_supported_profile;
+}
+
+static VAConfigID CreateVaConfig(VADisplay dpy, VAProfile i_profile)
+{
+    /* Create a VA configuration */
+    VAConfigAttrib attrib = {
+        .type = VAConfigAttribRTFormat,
+    };
+    if (vaGetConfigAttributes(dpy, i_profile, VAEntrypointVLD, &attrib, 1))
+        return VA_INVALID_ID;
+
+    /* Not sure what to do if not, I don't have a way to test */
+    if ((attrib.value & VA_RT_FORMAT_YUV420) == 0)
+        return VA_INVALID_ID;
+
+    VAConfigID va_config_id;
+    if (vaCreateConfig(dpy, i_profile, VAEntrypointVLD, &attrib, 1,
+                       &va_config_id))
+        return VA_INVALID_ID;
+    return va_config_id;
+}
+
 static int Extract( vlc_va_t *va, picture_t *p_picture, uint8_t *data )
 {
     vlc_va_sys_t *sys = va->sys;
@@ -295,60 +401,10 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
     }
 #endif
 
-    VAProfile i_profile, *p_profiles_list;
-    bool b_supported_profile = false;
-    int i_profiles_nb = 0;
-    unsigned count = 3;
-
-    /* */
-    switch( ctx->codec_id )
-    {
-    case AV_CODEC_ID_MPEG1VIDEO:
-    case AV_CODEC_ID_MPEG2VIDEO:
-        i_profile = VAProfileMPEG2Main;
-        count = 4;
-        break;
-    case AV_CODEC_ID_MPEG4:
-        i_profile = VAProfileMPEG4AdvancedSimple;
-        break;
-    case AV_CODEC_ID_WMV3:
-        i_profile = VAProfileVC1Main;
-        break;
-    case AV_CODEC_ID_VC1:
-        i_profile = VAProfileVC1Advanced;
-        break;
-    case AV_CODEC_ID_H264:
-        i_profile = VAProfileH264High;
-        count = 18;
-        break;
-    case AV_CODEC_ID_HEVC:
-        if (ctx->profile == FF_PROFILE_HEVC_MAIN)
-            i_profile = VAProfileHEVCMain;
-        else if (ctx->profile == FF_PROFILE_HEVC_MAIN_10)
-            i_profile = VAProfileHEVCMain10;
-        else
-            return VLC_EGENERIC;
-        count = 18;
-        break;
-    case AV_CODEC_ID_VP8:
-        i_profile = VAProfileVP8Version0_3;
-        count = 5;
-        break;
-    case AV_CODEC_ID_VP9:
-        if (ctx->profile == FF_PROFILE_VP9_0)
-            i_profile = VAProfileVP9Profile0;
-#if VA_CHECK_VERSION( 0, 39, 0 )
-        else if (ctx->profile == FF_PROFILE_VP9_2)
-            i_profile = VAProfileVP9Profile2;
-#endif
-        else
-            return VLC_EGENERIC;
-        count = 10;
-        break;
-    default:
+    VAProfile i_profile;
+    unsigned count;
+    if (GetVaProfile(ctx, &i_profile, &count) != VLC_SUCCESS)
         return VLC_EGENERIC;
-    }
-    count += ctx->thread_count;
 
     vlc_va_sys_t *sys;
     void *mem;
@@ -414,48 +470,15 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
         goto error;
     }
 
-    /* Check if the selected profile is supported */
-    i_profiles_nb = vaMaxNumProfiles(sys->hw_ctx.display);
-    p_profiles_list = calloc( i_profiles_nb, sizeof( VAProfile ) );
-    if( !p_profiles_list )
-        goto error;
-
-    if (vaQueryConfigProfiles(sys->hw_ctx.display, p_profiles_list,
-                              &i_profiles_nb) == VA_STATUS_SUCCESS)
-    {
-        for( int i = 0; i < i_profiles_nb; i++ )
-        {
-            if ( p_profiles_list[i] == i_profile )
-            {
-                b_supported_profile = true;
-                break;
-            }
-        }
-    }
-    free( p_profiles_list );
-    if ( !b_supported_profile )
+    if (!IsVaProfileSupported(sys->hw_ctx.display, i_profile))
     {
         msg_Dbg( va, "Codec and profile not supported by the hardware" );
         goto error;
     }
 
-    /* Create a VA configuration */
-    VAConfigAttrib attrib;
-    memset( &attrib, 0, sizeof(attrib) );
-    attrib.type = VAConfigAttribRTFormat;
-    if (vaGetConfigAttributes(sys->hw_ctx.display, i_profile, VAEntrypointVLD,
-                              &attrib, 1))
+    sys->hw_ctx.config_id = CreateVaConfig(sys->hw_ctx.display, i_profile);
+    if (sys->hw_ctx.config_id == VA_INVALID_ID)
         goto error;
-
-    /* Not sure what to do if not, I don't have a way to test */
-    if( (attrib.value & VA_RT_FORMAT_YUV420) == 0 )
-        goto error;
-    if (vaCreateConfig(sys->hw_ctx.display, i_profile, VAEntrypointVLD,
-                       &attrib, 1, &sys->hw_ctx.config_id))
-    {
-        sys->hw_ctx.config_id = VA_INVALID_ID;
-        goto error;
-    }
 
     /* Create surfaces */
     assert(ctx->coded_width > 0 && ctx->coded_height > 0);
