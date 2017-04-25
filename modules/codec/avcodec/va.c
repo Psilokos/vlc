@@ -37,10 +37,11 @@ int vlc_va_GetChromas(enum PixelFormat hwfmt, enum PixelFormat swfmt,
      * used to probe support as decoder output. So incorrect values were not
      * fatal, especially not if a software format. */
 #define RETURN_1(f) fourccs[0] = f; fourccs[1] = 0; return VLC_SUCCESS
+#define RETURN_2(f1, f2) fourccs[0] = f1; fourccs[1] = f2; fourccs[2] = 0; return VLC_SUCCESS
     switch (hwfmt)
     {
         case AV_PIX_FMT_VAAPI_VLD:
-            RETURN_1(VLC_CODEC_YV12);
+            RETURN_2(VLC_CODEC_VAAPI_OPAQUE, VLC_CODEC_YV12);
 
         case AV_PIX_FMT_DXVA2_VLD:
             switch (swfmt)
@@ -82,6 +83,7 @@ int vlc_va_GetChromas(enum PixelFormat hwfmt, enum PixelFormat swfmt,
             return VLC_EGENERIC;
     }
 #undef RETURN_1
+#undef RETURN_2
 }
 
 static int vlc_va_Start(void *func, va_list ap)

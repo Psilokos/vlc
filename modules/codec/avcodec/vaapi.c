@@ -1,6 +1,7 @@
 /*****************************************************************************
  * vaapi.c: VAAPI helpers for the libavcodec decoder
  *****************************************************************************
+ * Copyright (C) 2017 VLC authors and VideoLAN
  * Copyright (C) 2009-2010 Laurent Aimar
  * Copyright (C) 2012-2014 Rémi Denis-Courmont
  *
@@ -48,12 +49,26 @@
 
 #include "avcodec.h"
 #include "va.h"
-#include "../../video_chroma/copy.h"
 
+#ifdef VLC_VA_BACKEND_OPAQUE
+#include "../../hw/va/vlc_va.h"
+
+#else /* XLIB or DRM */
+
+#include "../../video_chroma/copy.h"
 #ifndef VA_SURFACE_ATTRIB_SETTABLE
 #define vaCreateSurfaces(d, f, w, h, s, ns, a, na) \
     vaCreateSurfaces(d, w, h, f, ns, s)
 #endif
+#endif
+
+#ifdef VLC_VA_BACKEND_OPAQUE /* XLIB or DRM */
+struct vlc_va_sys_t
+{
+    struct vaapi_context hw_ctx;
+};
+
+#else /* XLIB or DRM */
 
 struct vlc_va_sys_t
 {
@@ -78,6 +93,7 @@ struct vlc_va_sys_t
     uint32_t     available;
     VASurfaceID  surfaces[32];
 };
+#endif
 
 static int GetVaProfile(AVCodecContext *ctx, VAProfile *va_profile,
                       unsigned *pic_count)
@@ -184,6 +200,101 @@ static VAConfigID CreateVaConfig(VADisplay dpy, VAProfile i_profile)
         return VA_INVALID_ID;
     return va_config_id;
 }
+
+#ifdef VLC_VA_BACKEND_OPAQUE
+static int OpaqueExtract(vlc_va_t *va, picture_t *p_picture, uint8_t *data)
+{
+    (void) va; (void) p_picture; (void) data;
+    return VLC_SUCCESS;
+}
+
+static int OpaqueGet(vlc_va_t *va, picture_t *pic, uint8_t **data)
+{
+    (void) va;
+    *data = (void *)(uintptr_t)pic->p_sys->va_surface_id;
+    return VLC_SUCCESS;
+}
+
+static void OpaqueDelete(vlc_va_t *va, AVCodecContext *avctx)
+{
+    vlc_va_sys_t *sys = va->sys;
+
+    (void) avctx;
+
+    vaDestroyContext(sys->hw_ctx.display, sys->hw_ctx.context_id);
+    vaDestroyConfig(sys->hw_ctx.display, sys->hw_ctx.config_id);
+    free(sys);
+}
+
+static int OpaqueCreate(vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
+                        const es_format_t *fmt, picture_sys_t *p_sys)
+{
+    if (pix_fmt != AV_PIX_FMT_VAAPI_VLD)
+        return VLC_EGENERIC;
+
+    (void) fmt;
+    (void) p_sys;
+
+    /* The picture must be allocated by the vout */
+    if( p_sys == NULL || p_sys->va_dpy == NULL )
+        return VLC_EGENERIC;
+    assert(p_sys->va_render_targets != NULL && p_sys->va_num_render_targets > 0);
+
+    VAProfile i_profile;
+    unsigned count;
+    if (GetVaProfile(ctx, &i_profile, &count) != VLC_SUCCESS)
+        return VLC_EGENERIC;
+
+    vlc_va_sys_t *sys = malloc(sizeof *sys);
+    if (unlikely(sys == NULL))
+       return VLC_ENOMEM;
+    memset(sys, 0, sizeof (*sys));
+
+    /* */
+    sys->hw_ctx.display = p_sys->va_dpy;
+    sys->hw_ctx.config_id = VA_INVALID_ID;
+    sys->hw_ctx.context_id = VA_INVALID_ID;
+
+    if (!IsVaProfileSupported(sys->hw_ctx.display, i_profile))
+    {
+        msg_Dbg(va, "Codec and profile not supported by the hardware");
+        goto error;
+    }
+
+    sys->hw_ctx.config_id = CreateVaConfig(sys->hw_ctx.display, i_profile);
+    if (sys->hw_ctx.config_id == VA_INVALID_ID)
+        goto error;
+
+    /* Create a context */
+    if (vaCreateContext(sys->hw_ctx.display, sys->hw_ctx.config_id,
+                        ctx->coded_width, ctx->coded_height, VA_PROGRESSIVE,
+                        p_sys->va_render_targets, p_sys->va_num_render_targets,
+                        &sys->hw_ctx.context_id))
+    {
+        sys->hw_ctx.context_id = VA_INVALID_ID;
+        goto error;
+    }
+
+    msg_Dbg(va, "using opaque image format");
+
+    ctx->hwaccel_context = &sys->hw_ctx;
+    va->sys = sys;
+    va->description = vaQueryVendorString(sys->hw_ctx.display);
+    va->get = OpaqueGet;
+    va->release = NULL;
+    va->extract = OpaqueExtract;
+    return VLC_SUCCESS;
+
+error:
+    if (sys->hw_ctx.context_id != VA_INVALID_ID)
+        vaDestroyContext(sys->hw_ctx.display, sys->hw_ctx.context_id);
+    if (sys->hw_ctx.config_id != VA_INVALID_ID)
+        vaDestroyConfig(sys->hw_ctx.display, sys->hw_ctx.config_id);
+    free( sys );
+    return VLC_EGENERIC;
+}
+
+#else /* XLIB or DRM */
 
 static int Extract( vlc_va_t *va, picture_t *p_picture, uint8_t *data )
 {
@@ -392,6 +503,8 @@ static int Create( vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
     (void) fmt;
     (void) p_sys;
 #ifdef VLC_VA_BACKEND_XLIB
+    if( p_sys != NULL ) /* The picture is already allocated by the vout */
+        return VLC_EGENERIC;
     if( !vlc_xlib_init( VLC_OBJECT(va) ) )
     {
         msg_Warn( va, "Ignoring VA-X11 API" );
@@ -537,16 +650,23 @@ error:
     free( sys );
     return VLC_EGENERIC;
 }
+#endif
 
 vlc_module_begin ()
 #if defined (VLC_VA_BACKEND_XLIB)
     set_description( N_("VA-API video decoder via X11") )
+    set_capability( "hw decoder", 0 )
+    set_callbacks( Create, Delete )
 #elif defined (VLC_VA_BACKEND_DRM)
     set_description( N_("VA-API video decoder via DRM") )
-#endif
     set_capability( "hw decoder", 0 )
+    set_callbacks( Create, Delete )
+#elif defined (VLC_VA_BACKEND_OPAQUE)
+    set_description( N_("VA-API opaque video decoder") )
+    set_capability( "hw decoder", 100 )
+    set_callbacks( OpaqueCreate, OpaqueDelete )
+#endif
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_VCODEC )
-    set_callbacks( Create, Delete )
     add_shortcut( "vaapi" )
 vlc_module_end ()
