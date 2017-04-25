@@ -30,23 +30,25 @@
 #include <libavcodec/avcodec.h>
 #include "va.h"
 
-vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
+int vlc_va_GetChromas(enum PixelFormat hwfmt, enum PixelFormat swfmt,
+                     vlc_fourcc_t fourccs[static 3])
 {
     /* NOTE: At the time of writing this comment, the return value was only
      * used to probe support as decoder output. So incorrect values were not
      * fatal, especially not if a software format. */
+#define RETURN_1(f) fourccs[0] = f; fourccs[1] = 0; return VLC_SUCCESS
     switch (hwfmt)
     {
         case AV_PIX_FMT_VAAPI_VLD:
-            return VLC_CODEC_YV12;
+            RETURN_1(VLC_CODEC_YV12);
 
         case AV_PIX_FMT_DXVA2_VLD:
             switch (swfmt)
             {
                 case AV_PIX_FMT_YUV420P10LE:
-                    return VLC_CODEC_D3D9_OPAQUE_10B;
+                    RETURN_1(VLC_CODEC_D3D9_OPAQUE_10B);
                 default:
-                    return VLC_CODEC_D3D9_OPAQUE;
+                    RETURN_1(VLC_CODEC_D3D9_OPAQUE);
             }
 
 #if LIBAVUTIL_VERSION_CHECK(54, 13, 1, 24, 100)
@@ -54,9 +56,9 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
             switch (swfmt)
             {
                 case AV_PIX_FMT_YUV420P10LE:
-                    return VLC_CODEC_D3D11_OPAQUE_10B;
+                    RETURN_1(VLC_CODEC_D3D11_OPAQUE_10B);
                 default:
-                    return VLC_CODEC_D3D11_OPAQUE;
+                    RETURN_1(VLC_CODEC_D3D11_OPAQUE);
             }
 #endif
 #if (LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(52, 4, 0))
@@ -65,20 +67,21 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt)
             {
                 case AV_PIX_FMT_YUVJ444P:
                 case AV_PIX_FMT_YUV444P:
-                    return VLC_CODEC_VDPAU_VIDEO_444;
+                    RETURN_1(VLC_CODEC_VDPAU_VIDEO_444);
                 case AV_PIX_FMT_YUVJ422P:
                 case AV_PIX_FMT_YUV422P:
-                    return VLC_CODEC_VDPAU_VIDEO_422;
+                    RETURN_1(VLC_CODEC_VDPAU_VIDEO_422);
                 case AV_PIX_FMT_YUVJ420P:
                 case AV_PIX_FMT_YUV420P:
-                    return VLC_CODEC_VDPAU_VIDEO_420;
+                    RETURN_1(VLC_CODEC_VDPAU_VIDEO_420);
                 default:
-                    return 0;
+                    return VLC_EGENERIC;
             }
 #endif
         default:
-            return 0;
+            return VLC_EGENERIC;
     }
+#undef RETURN_1
 }
 
 static int vlc_va_Start(void *func, va_list ap)

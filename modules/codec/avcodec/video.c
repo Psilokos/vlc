@@ -81,6 +81,7 @@ struct decoder_sys_t
     /* VA API */
     vlc_va_t *p_va;
     enum PixelFormat pix_fmt;
+    vlc_fourcc_t hw_chroma;
     int profile;
     int level;
 
@@ -146,7 +147,7 @@ static int lavc_GetVideoFormat(decoder_t *dec, video_format_t *restrict fmt,
         avcodec_align_dimensions2(ctx, &width, &height, aligns);
     }
     else /* hardware decoding */
-        fmt->i_chroma = vlc_va_GetChroma(pix_fmt, sw_pix_fmt);
+        fmt->i_chroma = dec->p_sys->hw_chroma;
 
     if( width == 0 || height == 0 || width > 8192 || height > 8192 )
     {
@@ -1485,33 +1486,37 @@ static enum PixelFormat ffmpeg_GetFormat( AVCodecContext *p_context,
     {
         enum PixelFormat hwfmt = pi_fmt[i];
 
-        p_dec->fmt_out.video.i_chroma = vlc_va_GetChroma(hwfmt, swfmt);
-        if (p_dec->fmt_out.video.i_chroma == 0)
+        vlc_fourcc_t out_fourccs[VLC_VA_MAX_CHROMAS];
+        if (vlc_va_GetChromas(hwfmt, swfmt, out_fourccs) != VLC_SUCCESS)
             continue; /* Unknown brand of hardware acceleration */
-        if (lavc_UpdateVideoFormat(p_dec, p_context, hwfmt, swfmt))
-            continue; /* Unsupported brand of hardware acceleration */
-        post_mt(p_sys);
 
-        picture_t *test_pic = decoder_NewPicture(p_dec);
-        assert(!test_pic || test_pic->format.i_chroma == p_dec->fmt_out.video.i_chroma);
-        vlc_va_t *va = vlc_va_New(VLC_OBJECT(p_dec), p_context, hwfmt,
-                                  &p_dec->fmt_in,
-                                  test_pic ? test_pic->p_sys : NULL);
-        if (test_pic)
-            picture_Release(test_pic);
-        if (va == NULL)
+        for( size_t j = 0; ( p_sys->hw_chroma = out_fourccs[j] ) != 0; j++ )
         {
-            wait_mt(p_sys);
-            continue; /* Unsupported codec profile or such */
+            if (lavc_UpdateVideoFormat(p_dec, p_context, hwfmt, swfmt))
+                continue; /* Unsupported brand of hardware acceleration */
+            post_mt(p_sys);
+
+            picture_t *test_pic = decoder_NewPicture(p_dec);
+            assert(!test_pic || test_pic->format.i_chroma == p_dec->fmt_out.video.i_chroma);
+            vlc_va_t *va = vlc_va_New(VLC_OBJECT(p_dec), p_context, hwfmt,
+                                      &p_dec->fmt_in,
+                                      test_pic ? test_pic->p_sys : NULL);
+            if (test_pic)
+                picture_Release(test_pic);
+            if (va == NULL)
+            {
+                wait_mt(p_sys);
+                continue; /* Unsupported codec profile or such */
+            }
+
+            if (va->description != NULL)
+                msg_Info(p_dec, "Using %s for hardware decoding", va->description);
+
+            p_sys->p_va = va;
+            p_sys->pix_fmt = hwfmt;
+            p_context->draw_horiz_band = NULL;
+            return pi_fmt[i];
         }
-
-        if (va->description != NULL)
-            msg_Info(p_dec, "Using %s for hardware decoding", va->description);
-
-        p_sys->p_va = va;
-        p_sys->pix_fmt = hwfmt;
-        p_context->draw_horiz_band = NULL;
-        return pi_fmt[i];
     }
 
     post_mt(p_sys);
