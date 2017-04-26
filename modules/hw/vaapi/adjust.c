@@ -139,6 +139,15 @@ struct  filter_sys_t
  * Macros *
  **********/
 
+#define AUTO_CONT_TEXT         N_("Automatic contrast")
+#define AUTO_CONT_LONG_TEXT    N_("Automatically adjust contrast.")
+
+#define AUTO_LUM_TEXT          N_("Automatic brightness")
+#define AUTO_LUM_LONG_TEXT     N_("Automatically adjust brightness.")
+
+#define AUTO_SAT_TEXT          N_("Automatic saturation")
+#define AUTO_SAT_LONG_TEXT     N_("Automatically adjust saturation.")
+
 #define GET_DRV_SIGMA(vlc_sigma, vlc_range, drv_range)                  \
     ((vlc_sigma - vlc_range.min_value) *                                \
      (drv_range.max_value - drv_range.min_value) /                      \
@@ -153,6 +162,12 @@ vlc_module_begin()
     set_capability("video filter", 0)
     set_category(CAT_VIDEO)
     set_subcategory(SUBCAT_VIDEO_VFILTER)
+    add_bool("contrast-auto", false,
+             AUTO_CONT_TEXT, AUTO_CONT_LONG_TEXT, false)
+    add_bool("brightness-auto", false,
+             AUTO_LUM_TEXT, AUTO_LUM_LONG_TEXT, false)
+    add_bool("saturation-auto", false,
+             AUTO_SAT_TEXT, AUTO_SAT_LONG_TEXT, false)
     add_shortcut("adjust")
     set_callbacks(Open, Close)
 vlc_module_end()
