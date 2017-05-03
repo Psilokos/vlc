@@ -181,6 +181,11 @@ int vlc_va_TestPutImage(VADisplay va_dpy, VAImageFormat *va_format,
 static void PictureSysDestroyVAAPI(picture_sys_t *sys)
 {
     vaDestroySurfaces(sys->va_dpy, &sys->va_surface_id, 1);
+    if (!--*sys->p_va_render_targets_ref_cnt)
+    {
+        free(sys->va_render_targets);
+        free(sys->p_va_render_targets_ref_cnt);
+    }
     free(sys);
 }
 
@@ -194,7 +199,8 @@ static int PictureNew(VADisplay va_dpy,
                       const video_format_t *fmt,
                       picture_t **picp, VASurfaceID id,
                       VASurfaceID *render_targets,
-                      int num_render_targets)
+                      int num_render_targets,
+                      unsigned *p_render_targets_ref_cnt)
 {
     picture_sys_t *sys = malloc(sizeof (*sys));
     if (unlikely(sys == NULL))
@@ -204,6 +210,7 @@ static int PictureNew(VADisplay va_dpy,
     sys->va_surface_id = id;
     sys->va_render_targets = render_targets;
     sys->va_num_render_targets = num_render_targets;
+    sys->p_va_render_targets_ref_cnt = p_render_targets_ref_cnt;
 
     picture_resource_t res = {
         .p_sys = sys,
@@ -224,15 +231,24 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
                                  const video_format_t *restrict fmt, unsigned int va_rt_format)
 {
     picture_t   *pics[requested_count];
-    VASurfaceID  va_surface_ids[requested_count];
+    VASurfaceID *va_surface_ids = malloc(requested_count * sizeof(VASurfaceID));
+    unsigned    *p_va_surface_ids_ref_cnt = malloc(sizeof(unsigned));
     VAStatus     status;
     unsigned     count;
+
+    if (!va_surface_ids || !p_va_surface_ids_ref_cnt)
+    {
+        msg_Err(o, "unable to allocate memory");
+        return NULL;
+    }
 
     status = vaCreateSurfaces(va_dpy, va_rt_format,
                               fmt->i_visible_width, fmt->i_visible_height,
                               va_surface_ids, requested_count, NULL, 0);
     if (status != VA_STATUS_SUCCESS) {
         msg_Err(o, "vaCreateSurfaces(%d) failed: %d\n", va_rt_format, status);
+        free(va_surface_ids);
+        free(p_va_surface_ids_ref_cnt);
         return NULL;
     }
 
@@ -245,7 +261,7 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
 
     for (count = 0; count < requested_count; count++) {
         int err = PictureNew(va_dpy, fmt, pics + count, va_surface_ids[count],
-                             va_surface_ids, requested_count);
+                             va_surface_ids, requested_count, p_va_surface_ids_ref_cnt);
         if (err != VLC_SUCCESS) {
             break;
         }
@@ -258,8 +274,12 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
     }
 
     if (count == 0) {
+        free(va_surface_ids);
+        free(p_va_surface_ids_ref_cnt);
         return NULL;
     }
+
+    *p_va_surface_ids_ref_cnt = count;
 
     picture_pool_t *pool = picture_pool_New(count, pics);
     if (!pool) {

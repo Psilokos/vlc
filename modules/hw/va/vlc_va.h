@@ -110,6 +110,7 @@ struct picture_sys_t {
     /* The following can be used to create a VAContextID via vaCreateContext */
     VASurfaceID*  va_render_targets;
     int           va_num_render_targets;
+    unsigned*     p_va_render_targets_ref_cnt;
 };
 
 picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned requested_count,
