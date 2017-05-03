@@ -248,6 +248,8 @@ picture_pool_t *vlc_va_PoolAlloc(vlc_object_t *o, VADisplay va_dpy, unsigned req
 
     if (count != requested_count) {
         vaDestroySurfaces(va_dpy, &va_surface_ids[count], requested_count - count);
+        for (unsigned i = 0; i < count; ++i)
+            pics[i]->p_sys->va_num_render_targets = count;
     }
 
     if (count == 0) {
