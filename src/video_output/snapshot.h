@@ -51,13 +51,13 @@ picture_t *vout_snapshot_Get(vout_snapshot_t *, mtime_t timeout);
 bool vout_snapshot_IsRequested(vout_snapshot_t *);
 
 /**
- * It set the picture used to create the snapshots.
+ * It sets the picture used to create the snapshots.
  *
- * The given picture is only copied and not released.
+ * The given picture is held.
  * If p_fmt is non NULL it will override the format of the p_picture (mainly
  * used because of aspect/crop problems).
  */
-void vout_snapshot_Set(vout_snapshot_t *, const video_format_t *, const picture_t *);
+void vout_snapshot_Set(vout_snapshot_t *, const video_format_t *, picture_t *);
 
 /**
  * This function will return the directory used for snapshots
