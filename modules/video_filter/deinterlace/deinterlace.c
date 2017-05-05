@@ -149,9 +149,9 @@ static void SetFilterMethod( filter_t *p_filter, const char *mode, bool pack )
     filter_sys_t *p_sys = p_filter->p_sys;
 
     if( mode == NULL )
-        mode = "blend";
+        mode = "x";
 
-    p_sys->i_mode = DEINTERLACE_BLEND; /* default */
+    p_sys->i_mode = DEINTERLACE_X; /* default */
     p_sys->b_double_rate = false;
     p_sys->b_half_height = false;
     p_sys->b_use_frame_history = false;
@@ -178,6 +178,7 @@ static void SetFilterMethod( filter_t *p_filter, const char *mode, bool pack )
     }
     else if( !strcmp( mode, "blend" ) )
     {
+        p_sys->i_mode = DEINTERLACE_BLEND;
     }
     else if( pack )
     {
@@ -200,11 +201,10 @@ static void SetFilterMethod( filter_t *p_filter, const char *mode, bool pack )
     {
         msg_Err( p_filter, "unknown or incompatible deinterlace mode \"%s\""
                  " for high depth format", mode );
-        mode = "blend";
+        mode = "x";
     }
     else if( !strcmp( mode, "x" ) )
     {
-        p_sys->i_mode = DEINTERLACE_X;
     }
     else if( !strcmp( mode, "phosphor" ) )
     {
