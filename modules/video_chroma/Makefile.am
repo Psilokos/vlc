@@ -45,6 +45,10 @@ libyuy2_i422_plugin_la_SOURCES = video_chroma/yuy2_i422.c
 
 libyuvp_plugin_la_SOURCES = video_chroma/yuvp.c
 
+libi420_i420_10_plugin_la_SOURCES = video_chroma/i420_i420_10.c video_chroma/copy.c video_chroma/copy.h
+
+libi420_10_i420_plugin_la_SOURCES = video_chroma/i420_10_i420.c video_chroma/copy.c video_chroma/copy.h
+
 chroma_LTLIBRARIES = \
 	libi420_rgb_plugin.la \
 	libi420_yuy2_plugin.la \
@@ -58,6 +62,8 @@ chroma_LTLIBRARIES = \
 	librv32_plugin.la \
 	libchain_plugin.la \
 	libyuvp_plugin.la \
+	libi420_i420_10_plugin.la \
+	libi420_10_i420_plugin.la \
 	$(LTLIBswscale)
 
 EXTRA_LTLIBRARIES += libswscale_plugin.la libchroma_omx_plugin.la

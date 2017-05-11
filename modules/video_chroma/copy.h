@@ -53,4 +53,14 @@ void CopyFromI420ToNv12(picture_t *dst, uint8_t *src[3], size_t src_pitch[3],
 void CopyFromI420_10ToP010(picture_t *dst, uint8_t *src[3], size_t src_pitch[3],
                         unsigned height, copy_cache_t *cache);
 
+void CopyFromI420ToI420_10(picture_t *dest,
+                           uint8_t *src_planes[3], size_t src_pitches[3],
+                           unsigned int height, copy_cache_t *cache,
+                           bool is_big_endian);
+
+void CopyFromI420_10ToI420(picture_t *dest,
+                           uint16_t *src_planes[3], size_t src_pitches[3],
+                           unsigned int height, copy_cache_t *cache,
+                           bool is_big_endian);
+
 #endif

@@ -581,3 +581,121 @@ void CopyFromYv12(picture_t *dst, uint8_t *src[3], size_t src_pitch[3],
      CopyPlane(dst->p[2].p_pixels, dst->p[2].i_pitch,
                src[2], src_pitch[2], height / 2);
 }
+
+void
+CopyFromI420ToI420_10(picture_t *dest,
+                      uint8_t *src_planes[3], size_t src_pitches[3],
+                      unsigned int height, copy_cache_t *cache,
+                      bool is_big_endian)
+{ VLC_UNUSED(cache);
+    uint8_t     line_bool = 0;
+    uint8_t     uv_bool = 0;
+    uint16_t    *y = (uint16_t *)dest->p[Y_PLANE].p_pixels;
+    uint16_t    *u = (uint16_t *)dest->p[U_PLANE].p_pixels;
+    uint16_t    *v = (uint16_t *)dest->p[V_PLANE].p_pixels;
+
+    for (unsigned int i = 0; i < height; )
+    {
+        for (unsigned int j = 0; j < src_pitches[Y_PLANE]; ++j)
+        {
+            if (!is_big_endian)
+            {
+                *y = (uint16_t)*src_planes[Y_PLANE] << 2;
+                if (!line_bool && !uv_bool)
+                {
+                    *u = (uint16_t)*src_planes[U_PLANE] << 2;
+                    *v = (uint16_t)*src_planes[V_PLANE] << 2;
+                }
+            }
+            else
+            {
+                union
+                {
+                    uint8_t         val8[2];
+                    uint16_t        val16;
+                } pix;
+
+                pix.val16 = *src_planes[Y_PLANE] << 2;
+                *y = (uint16_t)pix.val8[0] << 8 | (uint16_t)pix.val8[1];
+                if (!line_bool && !uv_bool)
+                {
+                    pix.val16 = *src_planes[U_PLANE] << 2;
+                    *u = (uint16_t)pix.val8[0] << 8 | (uint16_t)pix.val8[1];
+                    pix.val16 = *src_planes[V_PLANE] << 2;
+                    *v = (uint16_t)pix.val8[0] << 8 | (uint16_t)pix.val8[1];
+                }
+            }
+            ++y;
+            ++src_planes[Y_PLANE];
+            if (!line_bool && !uv_bool)
+            {
+                ++u;
+                ++v;
+                ++src_planes[U_PLANE];
+                ++src_planes[V_PLANE];
+            }
+            if (!line_bool)
+                uv_bool = (uv_bool + 1) % 2;
+        }
+        line_bool = ++i % 2;
+    }
+}
+
+void
+CopyFromI420_10ToI420(picture_t *dest,
+                      uint16_t *src_planes[3], size_t src_pitches[3],
+                      unsigned int height, copy_cache_t *cache,
+                      bool is_big_endian)
+{ VLC_UNUSED(cache);
+    uint8_t     line_bool = 0;
+    uint8_t     uv_bool = 0;
+    uint8_t     *y = dest->p[Y_PLANE].p_pixels;
+    uint8_t     *u = dest->p[U_PLANE].p_pixels;
+    uint8_t     *v = dest->p[V_PLANE].p_pixels;
+
+    for (unsigned int i = 0; i < height; )
+    {
+        for (unsigned int j = 0; j < src_pitches[Y_PLANE] / 2; ++j)
+        {
+            if (!is_big_endian)
+            {
+                *y = (uint8_t)(*src_planes[Y_PLANE] >> 2);
+                if (!line_bool && !uv_bool)
+                {
+                    *u = (uint8_t)(*src_planes[U_PLANE] >> 2);
+                    *v = (uint8_t)(*src_planes[V_PLANE] >> 2);
+                }
+            }
+            else
+            {
+                union
+                {
+                    uint8_t         val8[2];
+                    uint16_t        val16;
+                } pix;
+
+                pix.val16 = *src_planes[Y_PLANE] >> 2;
+                *y = pix.val8[1];
+                if (!line_bool && !uv_bool)
+                {
+                    pix.val16 = *src_planes[U_PLANE] >> 2;
+                    *u = pix.val8[1];
+                    pix.val16 = *src_planes[V_PLANE] >> 2;
+                    *v = pix.val8[1];
+                }
+            }
+            ++y;
+            ++src_planes[Y_PLANE];
+            if (!line_bool && !uv_bool)
+            {
+                ++u;
+                ++v;
+                ++src_planes[U_PLANE];
+                ++src_planes[V_PLANE];
+            }
+            if (!line_bool)
+                uv_bool = (uv_bool + 1) % 2;
+        }
+        line_bool = ++i % 2;
+    }
+}
