@@ -1467,12 +1467,45 @@ static const d3d_format_t *GetBlendableFormat(vout_display_t *vd, vlc_fourcc_t i
     return FindD3D11Format( vd->sys->d3ddevice, i_src_chroma, 0, false, supportFlags );
 }
 
+static void
+ResizeFormatToD3D11MaxTextureSize(video_format_t *fmt)
+{
+    if (fmt->i_width > fmt->i_height)
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_w = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+        unsigned int const  nw_vis_w = nw_w * vis_w / fmt->i_width;
+
+        fmt->i_height = nw_w * fmt->i_height / fmt->i_width;
+        fmt->i_width = nw_w;
+        fmt->i_visible_height = nw_vis_w * vis_h / vis_w;
+        fmt->i_visible_width = nw_vis_w;
+    }
+    else
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_h = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+        unsigned int const  nw_vis_h = nw_h * vis_h / fmt->i_height;
+
+        fmt->i_width = nw_h * fmt->i_width / fmt->i_height;
+        fmt->i_height = nw_h;
+        fmt->i_visible_width = nw_vis_h * vis_w / vis_h;
+        fmt->i_visible_height = nw_vis_h;
+    }
+}
+
 static int Direct3D11Open(vout_display_t *vd, video_format_t *fmt)
 {
     vout_display_sys_t *sys = vd->sys;
     IDXGIFactory2 *dxgifactory;
 
     *fmt = vd->source;
+
+    if (fmt->i_width > D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+        fmt->i_height > D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION)
+        ResizeFormatToD3D11MaxTextureSize(fmt);
 
 #if !VLC_WINSTORE_APP
 
