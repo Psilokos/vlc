@@ -208,6 +208,7 @@ void UpdateRects(vout_display_t *vd,
 #endif
 
     /* Destination image position and dimensions */
+    msg_Dbg(vd, "place.width=%u place.height=%u", place.width, place.height);
 #if (defined(MODULE_NAME_IS_direct3d9) || defined(MODULE_NAME_IS_direct3d11)) && !VLC_WINSTORE_APP
     rect_dest.left = 0;
     rect_dest.right = place.width;

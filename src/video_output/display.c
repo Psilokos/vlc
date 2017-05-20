@@ -1221,8 +1221,13 @@ static vout_display_t *DisplayNew(vout_thread_t *vout,
 
     *cfg = state->cfg;
     osys->sar_initial = state->sar;
+    /* ((video_format_t *)source)->i_width = 16200; */
+    /* ((video_format_t *)source)->i_height = 44; */
+    /* ((video_format_t *)source)->i_visible_width = 16200; */
+    /* ((video_format_t *)source)->i_visible_height = 44; */
     vout_display_GetDefaultDisplaySize(&cfg->display.width, &cfg->display.height,
                                        source, cfg);
+    msg_Dbg(vout, "DisplayNew w=%u h=%u", cfg->display.width, cfg->display.height);
 
     osys->vout = vout;
     osys->is_wrapper = is_wrapper;

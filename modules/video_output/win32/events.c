@@ -756,12 +756,17 @@ static int Win32VoutCreateWindow( event_thread_t *p_event )
     rect_window.right  = rect_window.left + p_event->width;
     rect_window.bottom = rect_window.top  + p_event->height;
 
+    msg_Dbg(vd, "video-deco: %d", var_GetBool( vd, "video-deco" ));
     i_style = var_GetBool( vd, "video-deco" )
         /* Open with window decoration */
         ? WS_OVERLAPPEDWINDOW|WS_SIZEBOX
         /* No window decoration */
         : WS_POPUP;
+    msg_Dbg(vd, "%d %d %d %d",
+            rect_window.left, rect_window.top, rect_window.right, rect_window.bottom);
     AdjustWindowRect( &rect_window, i_style, 0 );
+    msg_Dbg(vd, "%d %d %d %d",
+            rect_window.left, rect_window.top, rect_window.right, rect_window.bottom);
     i_style |= WS_VISIBLE|WS_CLIPCHILDREN;
 
     if( p_event->hparent )
@@ -778,6 +783,8 @@ static int Win32VoutCreateWindow( event_thread_t *p_event )
     p_event->i_window_style = i_style;
 
     /* Create the window */
+    msg_Dbg(p_event->vd, "CREATING WIN w=%d h=%d",
+            rect_window.right - rect_window.left, rect_window.bottom - rect_window.top);
     p_event->hwnd =
         CreateWindowEx( WS_EX_NOPARENTNOTIFY,
                     p_event->class_main,             /* name of window class */

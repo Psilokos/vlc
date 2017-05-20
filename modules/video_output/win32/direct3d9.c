@@ -699,32 +699,36 @@ Direct3D9ResizeFormatToMaxTextureSize(video_format_t *fmt,
         goto resize_from_height;
 
 resize_from_width:
-    unsigned int const  vis_w = fmt->i_visible_width;
-    unsigned int const  vis_h = fmt->i_visible_height;
-    unsigned int const  nw_w = max_tex_width;
-    unsigned int const  nw_vis_w = nw_w * vis_w / fmt->i_width;
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_w = max_tex_width;
+        unsigned int const  nw_vis_w = nw_w * vis_w / fmt->i_width;
 
-    fmt->i_height = nw_w * fmt->i_height / fmt->i_width;
-    fmt->i_width = nw_w;
-    fmt->i_visible_height = nw_vis_w * vis_h / vis_w;
-    fmt->i_visible_width = nw_vis_w;
-    if (fmt->i_height > max_tex_height)
-        goto resize_from_height;
-    return;
+        fmt->i_height = nw_w * fmt->i_height / fmt->i_width;
+        fmt->i_width = nw_w;
+        fmt->i_visible_height = nw_vis_w * vis_h / vis_w;
+        fmt->i_visible_width = nw_vis_w;
+        if (fmt->i_height > max_tex_height)
+            goto resize_from_height;
+        return;
+    }
 
 resize_from_height:
-    unsigned int const  vis_w = fmt->i_visible_width;
-    unsigned int const  vis_h = fmt->i_visible_height;
-    unsigned int const  nw_h = max_tex_size;
-    unsigned int const  nw_vis_h = nw_h * vis_h / fmt->i_height;
+    {
+        unsigned int const  vis_w = fmt->i_visible_width;
+        unsigned int const  vis_h = fmt->i_visible_height;
+        unsigned int const  nw_h = max_tex_height;
+        unsigned int const  nw_vis_h = nw_h * vis_h / fmt->i_height;
 
-    fmt->i_width = nw_h * fmt->i_width / fmt->i_height;
-    fmt->i_height = nw_h;
-    fmt->i_visible_width = nw_vis_h * vis_w / vis_h;
-    fmt->i_visible_height = nw_vis_h;
-    if (fmt->i_width > max_tex_width)
-        goto resize_from_width;
-    return;
+        fmt->i_width = nw_h * fmt->i_width / fmt->i_height;
+        fmt->i_height = nw_h;
+        fmt->i_visible_width = nw_vis_h * vis_w / vis_h;
+        fmt->i_visible_height = nw_vis_h;
+        if (fmt->i_width > max_tex_width)
+            goto resize_from_width;
+        return;
+    }
 }
 
 /**
@@ -795,9 +799,14 @@ static int Direct3D9Create(vout_display_t *vd)
 
     if ( vd->fmt.i_width > sys->d3dcaps.MaxTextureWidth ||
          vd->fmt.i_height > sys->d3dcaps.MaxTextureHeight )
+    {
+        msg_Dbg(vd, "fmt resize from: w=%u h=%u, to max: w=%u h=%u\n",
+                vd->fmt.i_width, vd->fmt.i_height, sys->d3dcaps.MaxTextureWidth, sys->d3dcaps.MaxTextureHeight);
         Direct3D9ResizeFormatToMaxTextureSize(&vd->fmt,
                                               sys->d3dcaps.MaxTextureWidth,
                                               sys->d3dcaps.MaxTextureHeight);
+        msg_Dbg(vd, "fmt resized to: w=%u h=%u\n", vd->fmt.i_width, vd->fmt.i_height);
+    }
 
     return VLC_SUCCESS;
 }
