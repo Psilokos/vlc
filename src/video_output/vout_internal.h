@@ -81,6 +81,8 @@ struct vout_thread_sys_t
         char           *title;
         vout_display_t *vd;
         bool           use_dr;
+        bool           skip_filtering;
+        bool           pool_need_reset;
     } display;
 
     struct {
