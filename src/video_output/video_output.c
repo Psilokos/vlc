@@ -678,7 +678,10 @@ static picture_t *VoutVideoFilterInteractiveNewPicture(filter_t *filter)
 {
     vout_thread_t *vout = filter->owner.sys;
 
-    picture_t *picture = picture_pool_Get(vout->p->private_pool);
+    picture_pool_t *pool = vout->p->display_pool
+        ? vout->p->display_pool
+        : vout->p->private_pool;
+    picture_t *picture = picture_pool_Get(pool);
     if (picture) {
         picture_Reset(picture);
         VideoFormatCopyCropAr(&picture->format, &filter->fmt_out.video);
@@ -811,6 +814,18 @@ static void ThreadChangeFilters(vout_thread_t *vout,
         }
         fmt_current = *filter_chain_GetFmtOut(chain);
         vlc_array_clear(array);
+    }
+
+    if (vout_IsDisplayFiltered(vout->p->display.vd))
+    {
+        if (video_format_IsSimilar(&fmt_current.video, &vout->p->display.vd->fmt))
+        {
+            es_format_Clean(&fmt_target);
+            es_format_Copy(&fmt_target, &fmt_current);
+            vout_ChangeDrWrapper(vout, true);
+        }
+        else
+            vout_ChangeDrWrapper(vout, false);
     }
 
     if (!es_format_IsSimilar(&fmt_current, &fmt_target)) {
@@ -1023,7 +1038,6 @@ static int ThreadDisplayRenderPicture(vout_thread_t *vout, bool is_forced)
         subpic = NULL;
     }
 
-    assert(vout_IsDisplayFiltered(vd) == !sys->display.use_dr);
     if (sys->display.use_dr && !is_direct) {
         picture_t *direct = NULL;
         if (likely(vout->p->display_pool != NULL))

@@ -200,9 +200,19 @@ void vout_ManageWrapper(vout_thread_t *vout)
     reset_display_pool |= vout_ManageDisplay(vd, !sys->display.use_dr || reset_display_pool);
 
     if (reset_display_pool) {
+        /* we use direct rendering if the display is not filtered or if its
+           filtering is skipped, otherwise we don't */
         sys->display.use_dr = !vout_IsDisplayFiltered(vd);
         NoDrInit(vout);
     }
+}
+
+void vout_ChangeDrWrapper(vout_thread_t *vout, bool enable_dr)
+{
+    vout_thread_sys_t *sys = vout->p;
+
+    sys->display.use_dr = enable_dr;
+    NoDrInit(vout);
 }
 
 #ifdef _WIN32
