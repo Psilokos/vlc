@@ -893,6 +893,18 @@ static void ThreadChangeFilters(vout_thread_t *vout,
         vlc_array_clear(array);
     }
 
+    if (vout_IsDisplayFiltered(vout->p->display.vd))
+    {
+        if (video_format_IsSimilar(&fmt_current.video, &vout->p->display.vd->fmt))
+        {
+            es_format_Clean(&fmt_target);
+            es_format_Copy(&fmt_target, &fmt_current);
+            vout_ChangeDrWrapper(vout, true);
+        }
+        else
+            vout_ChangeDrWrapper(vout, false);
+    }
+
     if (!es_format_IsSimilar(&fmt_current, &fmt_target)) {
         msg_Dbg(vout, "Adding a filter to compensate for format changes");
         if (filter_chain_AppendConverter(vout->p->filter.chain_interactive,
@@ -1102,7 +1114,6 @@ static int ThreadDisplayRenderPicture(vout_thread_t *vout, bool is_forced)
         subpic = NULL;
     }
 
-    assert(vout_IsDisplayFiltered(vd) == !sys->display.use_dr);
     if (sys->display.use_dr && !is_direct) {
         picture_t *direct = NULL;
         if (likely(vout->p->display_pool != NULL))
