@@ -123,6 +123,8 @@ int vout_InitWrapper(vout_thread_t *vout)
     video_format_t source = vd->source;
 
     sys->display.use_dr = !vout_IsDisplayFiltered(vd);
+    sys->display.skip_filtering = false;
+    sys->display.pool_need_reset = false;
     const bool allow_dr = !vd->info.has_pictures_invalid && !vd->info.is_slow && sys->display.use_dr;
     const unsigned private_picture  = 4; /* XXX 3 for filter, 1 for SPU */
     const unsigned decoder_picture  = 1 + sys->dpb_size;
@@ -198,9 +200,16 @@ void vout_ManageWrapper(vout_thread_t *vout)
 
     bool reset_display_pool = vout_AreDisplayPicturesInvalid(vd);
     reset_display_pool |= vout_ManageDisplay(vd, !sys->display.use_dr || reset_display_pool);
+    /* reset the pool if needed anyway, and clear the boolean
+       we need to reset the pool by this mean when the value of skip_filtering
+       is changed */
+    reset_display_pool |= sys->display.pool_need_reset;
+    sys->display.pool_need_reset ^= sys->display.pool_need_reset;
 
     if (reset_display_pool) {
-        sys->display.use_dr = !vout_IsDisplayFiltered(vd);
+        /* we use direct rendering if the display is not filtered or if its
+           filtering is skipped, otherwise we don't */
+        sys->display.use_dr = !vout_IsDisplayFiltered(vd) | sys->display.skip_filtering;
         NoDrInit(vout);
     }
 }
