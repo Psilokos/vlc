@@ -372,6 +372,7 @@ drm_native_destroy_cb(VANativeDisplay native)
 int
 opengl_tex_converter_vaapi_init(opengl_tex_converter_t *tc)
 {
+    return -1;
     if (tc->fmt.i_chroma != VLC_CODEC_VAAPI_420 || tc->gl->ext != VLC_GL_EXT_EGL
      || tc->gl->egl.createImageKHR == NULL
      || tc->gl->egl.destroyImageKHR == NULL)

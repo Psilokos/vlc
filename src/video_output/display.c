@@ -90,6 +90,8 @@ static vout_display_t *vout_display_New(vlc_object_t *obj,
     vd->fmt.i_sar_num = 0;
     vd->fmt.i_sar_den = 0;
 
+    /* vd->fmt.i_chroma = VLC_CODEC_I420; */
+
     vd->info.is_slow = false;
     vd->info.has_double_click = false;
     vd->info.has_hide_mouse = false;
