@@ -1144,8 +1144,10 @@ static int ThreadDisplayRenderPicture(vout_thread_t *vout, bool is_forced)
     /* Render the direct buffer */
     vout_UpdateDisplaySourceProperties(vd, &todisplay->format);
     if (sys->display.use_dr) {
+        fprintf(stderr, "SKIP DISPLAY FILTERING\n");
         vout_display_Prepare(vd, todisplay, subpic);
     } else {
+        fprintf(stderr, "FILTERING DISPLAY\n");
         todisplay = vout_FilterDisplay(vd, todisplay);
         if (todisplay == NULL)
         {

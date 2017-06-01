@@ -317,6 +317,7 @@ tc_va_get_pool(const opengl_tex_converter_t *tc, const video_format_t *fmt,
 GLuint
 opengl_tex_converter_vaapi_init(video_format_t *fmt, opengl_tex_converter_t *tc)
 {
+    return 0;
     fprintf(stderr, "opengl_tex_converter_vaapi_init ? %4.4s\n", (const char *)&fmt->i_chroma);
 
     if (fmt->i_chroma != VLC_CODEC_VAAPI_420)
