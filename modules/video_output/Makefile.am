@@ -380,7 +380,9 @@ endif
 
 ### Direct Rendering Manager ###
 
-libdrm_gbm_window_plugin_la_SOURCES = video_output/drm_gbm.c
+libdrm_gbm_window_plugin_la_SOURCES = video_output/drm_gbm.c video_output/opengl/drm_input.c \
+	video_output/opengl/drm.h video_output/opengl/drm_events.h
+libdrm_gbm_window_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DUSE_GBM=1
 libdrm_gbm_window_plugin_la_CFLAGS = $(AM_CFLAGS) $(DRM_GBM_CFLAGS)
 libdrm_gbm_window_plugin_la_LIBADD = $(DRM_GBM_LIBS)
 libdrm_gbm_window_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)'

@@ -29,42 +29,45 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <gbm.h>
-#include <xf86drm.h>
-#include <xf86drmMode.h>
-
 #include <vlc_common.h>
 #include <vlc_fs.h>
 #include <vlc_plugin.h>
 #include <vlc_vout_window.h>
 
-struct  drm_display
-{
-    drmModeConnector *          connector;
-    drmModeModeInfo *           mode;
-    uint32_t                    crtc_id;
-    uint32_t                    fb;
-    struct drm_display *        next;
-};
+#include "drm.h"
 
-struct  drm_device
+/* Background thread for event handling */
+static void *
+Thread(void *data)
 {
-    int                         fd;
-    struct drm_display *        dpy;
-};
+    vout_window_t *const        wnd = data;
 
-struct vout_window_sys_t
-{
-    struct drm_device   drm;
-
-    struct
+    while (1)
     {
-        struct gbm_device *     device;
-        struct gbm_surface *    surface;
-        struct gbm_bo *         bo;
-    }                   gbm;
-};
+        while (poll_input_events(wnd))
+            msg_Err(wnd, "cannot poll input events");
+        while (!is_input_event_queue_empty(wnd))
+        {
+            struct event *const event = get_input_event(wnd);
 
+            switch (event->type)
+            {
+            case EVENT_KEYBOARD_KEY:
+                if (event->key.value == KEY_ESCAPE)
+                    vout_window_ReportClose(wnd);
+                break;
+            default:
+                break;
+            }
+
+            free(event);
+        }
+    }
+
+    return NULL;
+}
+
+#ifdef USE_GBM
 static int
 SwapFrameBuffersCallback(vlc_object_t * obj, char const * psz_name,
                          vlc_value_t oldval, vlc_value_t newval,
@@ -105,6 +108,29 @@ static int
 Control(vout_window_t * wnd, int cmd, va_list ap)
 { VLC_UNUSED(wnd); VLC_UNUSED(cmd); VLC_UNUSED(ap);
     return VLC_SUCCESS;
+}
+
+static void
+Close(vout_window_t *wnd)
+{
+    vout_window_sys_t *const    sys = wnd->sys;
+
+    msg_Err(wnd, "closing drm_gbm window");
+    if (sys->thread.handle)
+    {
+        vlc_cancel(sys->thread);
+        vlc_join(sys->thread, NULL);
+    }
+    destroy_input(wnd);
+    if (sys->gbm.bo)
+        gbm_surface_release_buffer(sys->gbm.surface, sys->gbm.bo);
+    if (sys->drm.fb)
+        drmModeRmFB(sys->drm.fd, sys->drm.fb);
+    gbm_surface_destroy(sys->gbm.surface);
+    gbm_device_destroy(sys->gbm.device);
+    drmModeFreeModeInfo(sys->drm.mode);
+    vlc_close(sys->drm.fd);
+    free(sys);
 }
 
 static int
@@ -302,6 +328,7 @@ error:
     return VLC_EGENERIC;
 }
 
+#ifdef USE_GBM
 static int
 init_gbm(vout_window_t * wnd)
 {
@@ -328,10 +355,12 @@ init_gbm(vout_window_t * wnd)
 
     return VLC_SUCCESS;
 }
+#endif
 
 static int
 Open(vout_window_t * wnd, vout_window_cfg_t const * cfg)
 { VLC_UNUSED(cfg);
+    msg_Err(wnd, "opening drm_gbm window");
     if (cfg->type != VOUT_WINDOW_TYPE_INVALID &&
         cfg->type != VOUT_WINDOW_TYPE_DRM_GBM)
         return VLC_EGENERIC;
@@ -340,8 +369,12 @@ Open(vout_window_t * wnd, vout_window_cfg_t const * cfg)
     if (!wnd->sys)
         return VLC_ENOMEM;
 
-    if (init_drm(wnd) || init_gbm(wnd))
+    if (init_drm(wnd) || create_input(wnd))
         goto error;
+#ifdef USE_GBM
+    if (init_gbm(wnd))
+        goto error;
+#endif
 
     vout_window_ReportSize(wnd, wnd->sys->drm.mode->hdisplay,
                            wnd->sys->drm.mode->vdisplay);
@@ -353,14 +386,24 @@ Open(vout_window_t * wnd, vout_window_cfg_t const * cfg)
     var_AddCallback(wnd, "drm-gbm-swap_frame_buffers",
                     SwapFrameBuffersCallback, wnd->sys);
 
+#ifdef USE_GBM
     wnd->type = VOUT_WINDOW_TYPE_DRM_GBM;
     wnd->handle.gbm = wnd->sys->gbm.surface;
     wnd->display.gbm = wnd->sys->gbm.device;
+#endif
     wnd->control = Control;
+
+    if (vlc_clone(&wnd->sys->thread, Thread, wnd, VLC_THREAD_PRIORITY_LOW))
+    {
+        wnd->sys->thread.handle = 0;
+        Close(wnd);
+        return VLC_EGENERIC;
+    }
 
     return VLC_SUCCESS;
 
 error:
+    destroy_input(wnd);
     if (wnd->sys->drm.fd)
         vlc_close(wnd->sys->drm.fd);
     free(wnd->sys);
@@ -375,6 +418,7 @@ Close(vout_window_t * wnd)
     var_DelCallback(wnd, "drm-gbm-swap_frame_buffers",
                     SwapFrameBuffersCallback, wnd->sys);
     var_Destroy(wnd, "drm-gbm-swap_frame_buffers");
+    destroy_input(wnd);
     if (sys->gbm.bo)
         gbm_surface_release_buffer(sys->gbm.surface, sys->gbm.bo);
     gbm_surface_destroy(sys->gbm.surface);
