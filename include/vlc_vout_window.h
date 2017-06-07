@@ -53,6 +53,7 @@ enum {
     VOUT_WINDOW_TYPE_NSOBJECT,
     VOUT_WINDOW_TYPE_ANDROID_NATIVE,
     VOUT_WINDOW_TYPE_WAYLAND,
+    VOUT_WINDOW_TYPE_DRM_GBM,
 };
 
 /**
@@ -133,12 +134,14 @@ struct vout_window_t {
         void     *nsobject;      /* Mac OSX view object */
         void     *anativewindow; /* Android native window. */
         struct wl_surface *wl;   /* Wayland surface */
+        struct gbm_surface *gbm; /* GBM surface */
     } handle;
 
     /* display server (mandatory) */
     union {
         char     *x11; /* X11 display (NULL = use default) */
         struct wl_display *wl;   /* Wayland struct wl_display pointer */
+        struct gbm_device *gbm; /* GBM device */
     } display;
 
     /* Control on the module (mandatory)
