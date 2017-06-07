@@ -381,8 +381,18 @@ libdrm_gbm_window_plugin_la_CFLAGS = $(AM_CFLAGS) $(DRM_GBM_CFLAGS)
 libdrm_gbm_window_plugin_la_LIBADD = $(DRM_GBM_LIBS)
 libdrm_gbm_window_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)'
 
+libegl_drm_gbm_plugin_la_SOURCES = video_output/opengl/egl.c
+libegl_drm_gbm_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DUSE_PLATFORM_DRM_GBM=1
+libegl_drm_gbm_plugin_la_CFLAGS = $(AM_CFLAGS) $(EGL_CFLAGS)
+libegl_drm_gbm_plugin_la_LIBADD = $(EGL_LIBS)
+libegl_drm_gbm_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)'
+
 EXTRA_LTLIBRARIES += libdrm_gbm_window_plugin.la
 vout_LTLIBRARIES += $(LTLIBdrm_gbm_window)
+if HAVE_EGL
+EXTRA_LTLIBRARIES += libegl_drm_gbm_plugin.la
+vout_LTLIBRARIES += $(LTLIBegl_drm_gbm)
+endif
 
 ### FrameBuffer ###
 

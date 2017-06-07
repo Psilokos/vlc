@@ -97,6 +97,9 @@ static void SwapBuffers (vlc_gl_t *gl)
     vlc_gl_sys_t *sys = gl->sys;
 
     eglSwapBuffers (sys->display, sys->surface);
+#ifdef USE_PLATFORM_DRM_GBM
+    var_TriggerCallback(gl->surface, "drm-gbm-swap_frame_buffers");
+#endif
 }
 
 static void *GetSymbol(vlc_gl_t *gl, const char *procname)
@@ -328,6 +331,24 @@ static int Open (vlc_object_t *obj, const struct gl_api *api)
     sys->display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 # endif
 
+#elif defined (USE_PLATFORM_DRM_GBM)
+    if (!CheckClientExt("EGL_MESA_platform_gbm") &&
+        !CheckClientExt("EGL_KHR_platform_gbm"))
+        goto error;
+
+    window = wnd->handle.gbm;
+# if defined(EGL_MESA_platform_gbm)
+    sys->display = GetDisplayEXT(EGL_PLATFORM_GBM_MESA,
+                                 wnd->display.gbm, NULL);
+    createSurface = CreateWindowSurfaceEXT;
+# elif defined(EGL_KHR_platform_gbm)
+    sys->display = GetDisplayEXT(EGL_PLATFORM_GBM_KHR,
+                                 wnd->display.gbm, NULL);
+    createSurface = CreateWindowSurfaceEXT;
+# else
+    goto error;
+# endif
+
 #endif
 
     if (sys->display == EGL_NO_DISPLAY)
@@ -434,17 +455,24 @@ static int OpenGL (vlc_object_t *obj)
     return Open (obj, &api);
 }
 
+/* The DRM platform is the last one we try */
+#ifndef USE_PLATFORM_DRM_GBM
+# define MODULE_SCORE   50
+#else
+# define MODULE_SCORE   40
+#endif
+
 vlc_module_begin ()
     set_shortname (N_("EGL"))
     set_description (N_("EGL extension for OpenGL"))
     set_category (CAT_VIDEO)
     set_subcategory (SUBCAT_VIDEO_VOUT)
-    set_capability ("opengl", 50)
+    set_capability ("opengl", MODULE_SCORE)
     set_callbacks (OpenGL, Close)
     add_shortcut ("egl")
 
     add_submodule ()
-    set_capability ("opengl es2", 50)
+    set_capability ("opengl es2", MODULE_SCORE)
     set_callbacks (OpenGLES2, Close)
     add_shortcut ("egl")
 

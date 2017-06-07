@@ -3127,7 +3127,7 @@ AM_CONDITIONAL([HAVE_WAYLAND_EGL], [test "${have_wayland_egl}" = "yes"])
 dnl
 dnl  Direct Rendering Manager
 dnl
-PKG_ENABLE_MODULES_VLC([DRM_GBM], [drm_gbm_window], [libdrm >= 2.4.58 gbm >= 10.3.2], [DRM mode support (using GBM)], [disabled])
+PKG_ENABLE_MODULES_VLC([DRM_GBM], [drm_gbm_window egl_drm_gbm], [libdrm >= 2.4.58 gbm >= 10.3.2], [DRM mode support (using GBM)], [disabled])
 
 dnl
 dnl  SDL module
