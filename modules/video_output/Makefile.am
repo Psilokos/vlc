@@ -374,6 +374,15 @@ vout_LTLIBRARIES += libegl_android_plugin.la
 endif
 endif
 
+### Direct Rendering Manager ###
+
+libdrm_gbm_window_plugin_la_SOURCES = video_output/drm_gbm.c
+libdrm_gbm_window_plugin_la_CFLAGS = $(AM_CFLAGS) $(DRM_GBM_CFLAGS)
+libdrm_gbm_window_plugin_la_LIBADD = $(DRM_GBM_LIBS)
+libdrm_gbm_window_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(voutdir)'
+
+EXTRA_LTLIBRARIES += libdrm_gbm_window_plugin.la
+vout_LTLIBRARIES += $(LTLIBdrm_gbm_window)
 
 ### FrameBuffer ###
 
