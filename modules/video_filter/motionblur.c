@@ -66,7 +66,7 @@ vlc_module_begin ()
     add_integer_with_range( FILTER_PREFIX "factor", 80, 1, 127,
                             FACTOR_TEXT, FACTOR_LONGTEXT, false )
 
-    add_shortcut( "blur" )
+    add_shortcut( "motionblur" )
 
     set_callbacks( Create, Destroy )
 vlc_module_end ()

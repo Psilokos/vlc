@@ -211,6 +211,7 @@ cvpxpool_create(const video_format_t *fmt, unsigned count)
         default:
             return NULL;
     }
+    cvpx_format = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
 
     /* destination pixel buffer attributes */
     CFMutableDictionaryRef cvpx_attrs_dict = cfdict_create(5);

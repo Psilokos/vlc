@@ -66,6 +66,8 @@ static void Close (vlc_object_t *);
 static picture_pool_t *Pool (vout_display_t *vd, unsigned requested_count);
 static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
 static void PictureDisplay (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
+static void MakeCurrent(vout_display_t *vd);
+static void ReleaseCurrent(vout_display_t *vd);
 static int Control (vout_display_t *vd, int query, va_list ap);
 
 static void *OurGetProcAddress(vlc_gl_t *, const char *);
@@ -277,6 +279,9 @@ static int Open (vlc_object_t *this)
         sys->gl->swap = OpenglSwap;
         sys->gl->getProcAddress = OurGetProcAddress;
 
+        var_Create(vd->obj.parent, "macosx-ns-opengl-context", VLC_VAR_ADDRESS);
+        var_SetAddress(vd->obj.parent, "macosx-ns-opengl-context", [sys->glView openGLContext]);
+
         const vlc_fourcc_t *subpicture_chromas;
 
         if (vlc_gl_MakeCurrent(sys->gl) != VLC_SUCCESS)
@@ -340,6 +345,7 @@ void Close (vlc_object_t *this)
                                       withObject:nil
                                    waitUntilDone:NO];
 
+        var_Destroy(vd->obj.parent, "macosx-ns-opengl-context");
         if (sys->vgl != NULL)
         {
             vlc_gl_MakeCurrent(sys->gl);

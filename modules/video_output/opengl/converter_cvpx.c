@@ -194,26 +194,32 @@ opengl_tex_converter_cvpx_init(opengl_tex_converter_t *tc)
     switch (tc->fmt.i_chroma)
     {
         case VLC_CODEC_CVPX_UYVY:
+            fprintf(stderr, "--------------------------------------------- UYVY\n");
             fragment_shader =
-                opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_UYVY,
-                                            tc->fmt.space);
-            tc->texs[0].internal = GL_RGB;
-            tc->texs[0].format = GL_RGB_422_APPLE;
-            tc->texs[0].type = GL_UNSIGNED_SHORT_8_8_APPLE;
+            /*     opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_UYVY, */
+            /*                                 tc->fmt.space); */
+                opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_NV12,
+                                            COLOR_SPACE_BT709);
+            /* tc->texs[0].internal = GL_RGB; */
+            /* tc->texs[0].format = GL_RGB_422_APPLE; */
+            /* tc->texs[0].type = GL_UNSIGNED_SHORT_8_8_APPLE; */
             break;
         case VLC_CODEC_CVPX_NV12:
         {
+            fprintf(stderr, "--------------------------------------------- NV12\n");
             fragment_shader =
                 opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_NV12,
                                             tc->fmt.space);
             break;
         }
         case VLC_CODEC_CVPX_I420:
+            fprintf(stderr, "--------------------------------------------- I420\n");
             fragment_shader =
                 opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_I420,
                                             tc->fmt.space);
             break;
         case VLC_CODEC_CVPX_BGRA:
+            fprintf(stderr, "--------------------------------------------- BGRA\n");
             fragment_shader =
                 opengl_fragment_shader_init(tc, tex_target, VLC_CODEC_RGB32,
                                             COLOR_SPACE_UNDEF);
