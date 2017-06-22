@@ -41,6 +41,11 @@
 # include <vlc_xlib.h>
 #endif
 
+#ifdef HAVE_VA_DRM
+# include <va/va_drm.h>
+# include <gbm.h>
+#endif
+
 struct priv
 {
     VADisplay vadpy;
@@ -134,7 +139,6 @@ tc_vaegl_update(const opengl_tex_converter_t *tc, GLuint *textures,
     VABufferInfo va_buffer_info;
     EGLImageKHR egl_images[3] = { };
     bool release_image = false, release_buffer_info = false;
-
     if (pic == priv->last.pic)
     {
         va_image = priv->last.va_image;
@@ -380,6 +384,15 @@ opengl_tex_converter_vaapi_init(opengl_tex_converter_t *tc)
             if (tc_vaegl_init(tc, vaGetDisplayWl(tc->gl->surface->display.wl)))
                 return VLC_EGENERIC;
             break;
+#endif
+#ifdef HAVE_VA_DRM
+        case VOUT_WINDOW_TYPE_DRM_GBM:
+        {
+            int fd = gbm_device_get_fd(tc->gl->surface->display.gbm);
+            if (tc_vaegl_init(tc, vaGetDisplayDRM(fd)))
+                return VLC_EGENERIC;
+            break;
+        }
 #endif
         default:
             return VLC_EGENERIC;
