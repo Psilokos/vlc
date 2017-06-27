@@ -38,50 +38,64 @@
 #include <vlc_plugin.h>
 #include <vlc_vout_window.h>
 
+struct  drm_display
+{
+    drmModeConnector *          connector;
+    drmModeModeInfo *           mode;
+    uint32_t                    crtc_id;
+    uint32_t                    fb;
+    struct drm_display *        next;
+};
+
+struct  drm_device
+{
+    int                         fd;
+    struct drm_display *        dpy;
+};
+
 struct vout_window_sys_t
 {
-    struct
-    {
-        int                     fd;
-        drmModeConnector *      connector;
-        drmModeModeInfo *       mode;
-        uint32_t                crtc_id;
-        uint32_t                fb;
-    } drm;
+    struct drm_device   drm;
 
     struct
     {
         struct gbm_device *     device;
         struct gbm_surface *    surface;
         struct gbm_bo *         bo;
-    } gbm;
+    }                   gbm;
 };
 
 static int
-SwapFrameBuffersCallback(vlc_object_t * obj, char const * name,
-                         vlc_value_t prev, vlc_value_t cur,
-                         void * data)
-{ VLC_UNUSED(obj); VLC_UNUSED(name); VLC_UNUSED(prev); VLC_UNUSED(cur);
-    vout_window_sys_t *const    sys = data;
+SwapFrameBuffersCallback(vlc_object_t * obj, char const * psz_name,
+                         vlc_value_t oldval, vlc_value_t newval,
+                         void * p_data)
+{ VLC_UNUSED(obj); VLC_UNUSED(psz_name); VLC_UNUSED(oldval);
+    VLC_UNUSED(newval);
+
+    vout_window_sys_t *const    sys = p_data;
     struct gbm_bo *const        next_bo =
         gbm_surface_lock_front_buffer(sys->gbm.surface);
     uint32_t const              bo_handle = gbm_bo_get_handle(next_bo).u32;
     uint32_t const              bo_pitch = gbm_bo_get_stride(next_bo);
-    uint32_t                    next_fb;
 
-    if (drmModeAddFB(sys->drm.fd,
-                     sys->drm.mode->hdisplay, sys->drm.mode->vdisplay,
-                     24, 32, bo_pitch, bo_handle, &next_fb) ||
-        drmModeSetCrtc(sys->drm.fd, sys->drm.crtc_id, next_fb, 0, 0,
-                       &sys->drm.connector->connector_id, 1, sys->drm.mode))
-        return VLC_EGENERIC;
+    for (struct drm_display * dpy = sys->drm.dpy; dpy; dpy = dpy->next)
+    {
+        uint32_t        next_fb;
+
+        if (drmModeAddFB(sys->drm.fd,
+                         dpy->mode->hdisplay, dpy->mode->vdisplay,
+                         24, 32, bo_pitch, bo_handle, &next_fb) ||
+            drmModeSetCrtc(sys->drm.fd, dpy->crtc_id, next_fb, 0, 0,
+                           &dpy->connector->connector_id, 1, dpy->mode))
+            return VLC_EGENERIC;
+
+        if (dpy->fb)
+            drmModeRmFB(sys->drm.fd, dpy->fb);
+        dpy->fb = next_fb;
+    }
 
     if (sys->gbm.bo)
-    {
-        drmModeRmFB(sys->drm.fd, sys->drm.fb);
         gbm_surface_release_buffer(sys->gbm.surface, sys->gbm.bo);
-    }
-    sys->drm.fb = next_fb;
     sys->gbm.bo = next_bo;
 
     return VLC_SUCCESS;
@@ -118,21 +132,6 @@ drm_open_device(vout_window_t * wnd)
     return ret;
 }
 
-static drmModeConnector *
-drm_find_connector(int drm_fd, drmModeRes * resources)
-{
-    for (int i = 0; i < resources->count_connectors; ++i)
-    {
-        drmModeConnector *const connector =
-            drmModeGetConnector(drm_fd, resources->connectors[i]);
-
-        if (connector->connection == DRM_MODE_CONNECTED)
-            return connector;
-        drmModeFreeConnector(connector);
-    }
-    return NULL;
-}
-
 static drmModeModeInfo *
 drm_find_mode(drmModeConnector * connector)
 {
@@ -155,6 +154,27 @@ drm_find_mode(drmModeConnector * connector)
     }
 
     return mode;
+}
+
+static struct drm_display *
+drm_new_display(struct drm_device * drm, drmModeConnector * connector)
+{
+    struct drm_display *const   new = calloc(1, sizeof(*new));
+    if (!new)
+        return NULL;
+    new->connector = connector;
+
+    if (drm->dpy)
+    {
+        struct drm_display *    last = drm->dpy;
+        while (last->next)
+            last = last->next;
+        last->next = new;
+    }
+    else
+        drm->dpy = new;
+
+    return new;
 }
 
 static drmModeEncoder *
@@ -208,7 +228,6 @@ init_drm(vout_window_t * wnd)
 {
     vout_window_sys_t *const    sys = wnd->sys;
     drmModeRes *                resources;
-    drmModeEncoder *            encoder = NULL;
 
     if (drm_open_device(wnd))
         return VLC_EGENERIC;
@@ -220,40 +239,64 @@ init_drm(vout_window_t * wnd)
         goto error;
     }
 
-    sys->drm.connector = drm_find_connector(sys->drm.fd, resources);
-    if (!sys->drm.connector)
+    for (int i = 0; i < resources->count_connectors; ++i)
     {
-        msg_Err(wnd, "drm_find_connector failed\n");
+        drmModeConnector *const connector =
+            drmModeGetConnector(sys->drm.fd, resources->connectors[i]);
+
+        if (connector->connection == DRM_MODE_CONNECTED)
+        {
+            struct drm_display *const   dpy =
+                drm_new_display(&sys->drm, connector);
+            if (!dpy)
+                goto error;
+
+            dpy->mode = drm_find_mode(connector);
+            if (!dpy->mode)
+            {
+                msg_Err(wnd, "could not detect display mode\n");
+                goto error;
+            }
+            else
+                msg_Dbg(wnd, "display mode is %ux%u",
+                        dpy->mode->hdisplay, dpy->mode->vdisplay);
+
+            drmModeEncoder *const       encoder =
+                drm_find_encoder(sys->drm.fd, resources, connector);
+
+            if (encoder)
+            {
+                dpy->crtc_id = encoder->crtc_id;
+                drmModeFreeEncoder(encoder);
+            }
+            else if (drm_find_crtc(sys->drm.fd, resources,
+                                   connector, &dpy->crtc_id))
+            {
+                msg_Err(wnd, "could not find a suitable CRT controller\n");
+                goto error;
+            }
+        }
+        else
+            drmModeFreeConnector(connector);
+    }
+
+    if (!sys->drm.dpy)
+    {
+        msg_Err(wnd, "no display detected\n");
         goto error;
     }
 
-    sys->drm.mode = drm_find_mode(sys->drm.connector);
-    if (!sys->drm.mode)
-    {
-        msg_Err(wnd, "drm_find_mode failed\n");
-        goto error;
-    }
-    else
-        msg_Dbg(wnd, "display mode is %ux%u",
-                sys->drm.mode->hdisplay, sys->drm.mode->vdisplay);
-
-    encoder = drm_find_encoder(sys->drm.fd, resources, sys->drm.connector);
-    if (encoder)
-        sys->drm.crtc_id = encoder->crtc_id;
-    else if (drm_find_crtc(sys->drm.fd, resources,
-                           sys->drm.connector, &sys->drm.crtc_id))
-    {
-        msg_Err(wnd, "drm_find_crtc failed\n");
-        goto error;
-    }
-
-    drmModeFreeEncoder(encoder);
     drmModeFreeResources(resources);
     return VLC_SUCCESS;
 
 error:
-    if (encoder)
-        drmModeFreeEncoder(encoder);
+    for (struct drm_display * dpy = sys->drm.dpy; dpy; )
+    {
+        struct drm_display *const       to_del = dpy;
+        dpy = dpy->next;
+        drmModeFreeConnector(to_del->connector);
+        free(to_del);
+    }
     if (resources)
         drmModeFreeResources(resources);
     return VLC_EGENERIC;
@@ -318,8 +361,6 @@ Open(vout_window_t * wnd, vout_window_cfg_t const * cfg)
     return VLC_SUCCESS;
 
 error:
-    if (wnd->sys->drm.connector)
-        drmModeFreeConnector(wnd->sys->drm.connector);
     if (wnd->sys->drm.fd)
         vlc_close(wnd->sys->drm.fd);
     free(wnd->sys);
@@ -336,11 +377,17 @@ Close(vout_window_t * wnd)
     var_Destroy(wnd, "drm-gbm-swap_frame_buffers");
     if (sys->gbm.bo)
         gbm_surface_release_buffer(sys->gbm.surface, sys->gbm.bo);
-    if (sys->drm.fb)
-        drmModeRmFB(sys->drm.fd, sys->drm.fb);
     gbm_surface_destroy(sys->gbm.surface);
     gbm_device_destroy(sys->gbm.device);
-    drmModeFreeConnector(sys->drm.connector);
+    for (struct drm_display * dpy = sys->drm.dpy; dpy; )
+    {
+        struct drm_display *const       to_del = dpy;
+        dpy = dpy->next;
+        if (to_del->fb)
+            drmModeRmFB(sys->drm.fd, to_del->fb);
+        drmModeFreeConnector(to_del->connector);
+        free(to_del);
+    }
     vlc_close(sys->drm.fd);
     free(sys);
 }
