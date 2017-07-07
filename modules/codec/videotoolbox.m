@@ -695,6 +695,10 @@ static int StartVideoToolbox(decoder_t *p_dec)
                      kCVPixelBufferBytesPerRowAlignmentKey,
                      i_video_width);
 
+    /* force NV12 */
+    cfdict_set_int32(p_sys->destinationPixelBufferAttributes, kCVPixelBufferPixelFormatTypeKey,
+                     kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange);
+
     /* setup decoder callback record */
     VTDecompressionOutputCallbackRecord decoderCallbackRecord;
     decoderCallbackRecord.decompressionOutputCallback = DecoderCallback;
