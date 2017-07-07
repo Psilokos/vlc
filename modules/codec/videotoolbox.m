@@ -693,7 +693,7 @@ static int StartVideoToolbox(decoder_t *p_dec)
                      kCVPixelBufferHeightKey, i_video_height);
     cfdict_set_int32(p_sys->destinationPixelBufferAttributes,
                      kCVPixelBufferBytesPerRowAlignmentKey,
-                     i_video_width * 2);
+                     i_video_width);
 
     /* setup decoder callback record */
     VTDecompressionOutputCallbackRecord decoderCallbackRecord;
