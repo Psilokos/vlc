@@ -31,6 +31,7 @@
 #include <vlc_filter.h>
 #include <vlc_picture.h>
 #include <vlc_plugin.h>
+#include <vlc_modules.h>
 #include "filter_picture.h"
 #include "vt_utils.h"
 
@@ -66,9 +67,13 @@ struct  filter_chain
 
 struct  ci_filters_ctx
 {
-    CVPixelBufferPoolRef        dest_cvpx_pool;
+    CVPixelBufferPoolRef        cvpx_pool;
+    video_format_t              cvpx_pool_fmt;
+    CVPixelBufferPoolRef        outconv_cvpx_pool;
     CIContext *                 ci_ctx;
     struct filter_chain *       fchain;
+    filter_t *                  src_converter;
+    filter_t *                  dst_converter;
 };
 
 struct filter_sys_t
@@ -276,6 +281,10 @@ ParamsCallback(vlc_object_t *obj,
     return VLC_SUCCESS;
 }
 
+#if MAC_OS_X_VERSION_MIN_ALLOWED <= MAC_OS_X_VERSION_10_11
+const CFStringRef kCGColorSpaceITUR_709 = CFSTR("kCGColorSpaceITUR_709");
+#endif
+
 static picture_t *
 Filter(filter_t *filter, picture_t *src)
 {
@@ -286,11 +295,33 @@ Filter(filter_t *filter, picture_t *src)
     if (ctx->fchain->filter != filter_types[0])
         return src;
 
-    picture_t *dst = picture_NewFromFormat(&filter->fmt_out.video);
+    if (ctx->src_converter)
+    {
+        picture_t *mapped =
+            cvpxpic_create_mapped(&ctx->src_converter->fmt_in.video,
+                                  cvpxpic_get_ref(src), true);
+        if (!mapped)
+        {
+            picture_Release(src);
+            return NULL;
+        }
+        picture_CopyProperties(mapped, src);
+        picture_Release(src);
+
+        mapped = ctx->src_converter->pf_video_filter(ctx->src_converter, mapped);
+        if (!mapped)
+            return NULL;
+
+        src = cvpxpic_unmap(mapped);
+        if (!src)
+            return NULL;
+    }
+
+    picture_t *dst = picture_NewFromFormat(&ctx->cvpx_pool_fmt);
     if (!dst)
         goto error;
 
-    CVPixelBufferRef cvpx = cvpxpool_get_cvpx(ctx->dest_cvpx_pool);
+    CVPixelBufferRef cvpx = cvpxpool_get_cvpx(ctx->cvpx_pool);
     if (!cvpx || cvpxpic_attach(dst, cvpx))
         goto error;
 
@@ -316,14 +347,39 @@ Filter(filter_t *filter, picture_t *src)
         }
 
         ci_img = [fchain->ci_filter valueForKey: kCIOutputImageKey];
-    }
 
+        fprintf(stderr, "%s\n", [filter_desc_table_GetFilterName(fchain->filter) UTF8String]);
+    }
+    fprintf(stderr, "\n");
+
+    CGColorSpaceRef cgColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_709);
     [ctx->ci_ctx render: ci_img
             toIOSurface: CVPixelBufferGetIOSurface(cvpx)
                  bounds: [ci_img extent]
-             colorSpace: nil];
+             colorSpace: cgColorSpace];
+    CGColorSpaceRelease(cgColorSpace);
 
-    return CopyInfoAndRelease(dst, src);
+    CopyInfoAndRelease(dst, src);
+    if (ctx->dst_converter)
+    {
+        picture_t *mapped =
+            cvpxpic_create_mapped(&ctx->dst_converter->fmt_in.video,
+                                  cvpxpic_get_ref(dst), true);
+        if (!mapped)
+            goto error;
+        picture_CopyProperties(mapped, dst);
+        picture_Release(dst);
+
+        mapped = ctx->dst_converter->pf_video_filter(ctx->dst_converter, mapped);
+        if (!mapped)
+            return NULL;
+
+        dst = cvpxpic_unmap(mapped);
+        if (!dst)
+            return NULL;
+    }
+
+    return dst;
 
 error:
     if (dst)
@@ -385,10 +441,25 @@ filter_CreateFilters
     return VLC_SUCCESS;
 }
 
+static picture_t *
+CVPX_buffer_new(filter_t *converter)
+{
+    CVPixelBufferPoolRef pool = converter->owner.sys;
+    CVPixelBufferRef cvpx = cvpxpool_get_cvpx(pool);
+    if (!cvpx)
+        return NULL;
+
+    picture_t *pic =
+        cvpxpic_create_mapped(&converter->fmt_out.video, cvpx, false);
+    CFRelease(cvpx);
+    return pic;
+}
+
 static int
 Open(vlc_object_t *obj, char const *psz_filter)
 {
     filter_t *filter = (filter_t *)obj;
+
     filter->p_sys = calloc(1, sizeof(filter_sys_t));
     if (!filter->p_sys)
         return VLC_ENOMEM;
@@ -403,9 +474,73 @@ Open(vlc_object_t *obj, char const *psz_filter)
         if (!ctx)
             goto error;
 
-        ctx->dest_cvpx_pool = cvpxpool_create(&filter->fmt_in.video, 2);
-        if (!ctx->dest_cvpx_pool)
-            goto error;
+        if (filter->fmt_in.video.i_chroma != VLC_CODEC_CVPX_NV12)
+        {
+            vlc_fourcc_t i_chroma;
+#define CASE_CVPX(fourcc) \
+            case VLC_CODEC_CVPX_##fourcc: \
+                i_chroma = VLC_CODEC_##fourcc;
+
+            switch (filter->fmt_in.video.i_chroma)
+            {
+                CASE_CVPX(I420)
+                    break;
+                CASE_CVPX(UYVY)
+                    break;
+                CASE_CVPX(BGRA)
+                    break;
+            default:
+                goto error;
+            }
+
+            ctx->src_converter = vlc_object_create(obj, sizeof(filter_t));
+            if (!ctx->src_converter)
+                goto error;
+
+            ctx->src_converter->fmt_in = filter->fmt_in;
+            ctx->src_converter->fmt_out = filter->fmt_in;
+            ctx->src_converter->fmt_in.i_codec = ctx->src_converter->fmt_in.video.i_chroma = i_chroma;
+            ctx->src_converter->fmt_out.i_codec = ctx->src_converter->fmt_out.video.i_chroma = VLC_CODEC_NV12;
+
+            video_format_Copy(&ctx->cvpx_pool_fmt, &filter->fmt_in.video);
+            ctx->cvpx_pool_fmt.i_chroma = VLC_CODEC_CVPX_NV12;
+            ctx->cvpx_pool = cvpxpool_create(&ctx->cvpx_pool_fmt, 2);
+            if (!ctx->cvpx_pool)
+            {
+                fprintf(stderr, "pool create fail\n");
+                goto error;
+            }
+
+            ctx->src_converter->owner.sys = ctx->cvpx_pool;
+            ctx->src_converter->owner.video.buffer_new = CVPX_buffer_new;
+
+            ctx->src_converter->p_module =
+                module_need(ctx->src_converter, "video converter", NULL, false);
+            if (!ctx->src_converter->p_module)
+                goto error;
+
+            ctx->dst_converter = vlc_object_create(obj, sizeof(filter_t));
+            if (!ctx->dst_converter)
+                goto error;
+
+            ctx->dst_converter->fmt_in = filter->fmt_out;
+            ctx->dst_converter->fmt_out = filter->fmt_out;
+            ctx->dst_converter->fmt_in.i_codec = ctx->dst_converter->fmt_in.video.i_chroma = VLC_CODEC_NV12;
+            ctx->dst_converter->fmt_out.i_codec = ctx->dst_converter->fmt_out.video.i_chroma = i_chroma;
+
+            ctx->outconv_cvpx_pool =
+                cvpxpool_create(&filter->fmt_out.video, 2);
+            if (!ctx->outconv_cvpx_pool)
+                goto error;
+
+            ctx->dst_converter->owner.sys = ctx->outconv_cvpx_pool;
+            ctx->dst_converter->owner.video.buffer_new = CVPX_buffer_new;
+
+            ctx->dst_converter->p_module =
+                module_need(ctx->dst_converter, "video converter", NULL, false);
+            if (!ctx->dst_converter->p_module)
+                goto error;
+        }
 
         NSOpenGLContext *context =
             var_InheritAddress(filter, "macosx-ns-opengl-context");
@@ -417,6 +552,14 @@ Open(vlc_object_t *obj, char const *psz_filter)
                                                options: nil];
         if (!ctx->ci_ctx)
             goto error;
+
+        if (!ctx->cvpx_pool)
+        {
+            ctx->cvpx_pool_fmt = filter->fmt_out.video;
+            ctx->cvpx_pool = cvpxpool_create(&ctx->cvpx_pool_fmt, 2);
+            if (!ctx->cvpx_pool)
+                goto error;
+        }
 
         if (filter_CreateFilters(obj, &ctx->fchain, filter_types))
             goto error;
@@ -437,10 +580,24 @@ Open(vlc_object_t *obj, char const *psz_filter)
 error:
     if (ctx)
     {
+        if (ctx->dst_converter)
+        {
+            if (ctx->dst_converter->p_module)
+                module_unneed(ctx->dst_converter, ctx->dst_converter->p_module);
+            vlc_object_release(ctx->dst_converter);
+            if (ctx->outconv_cvpx_pool)
+                CVPixelBufferPoolRelease(ctx->outconv_cvpx_pool);
+        }
+        if (ctx->src_converter)
+        {
+            if (ctx->src_converter->p_module)
+                module_unneed(ctx->src_converter, ctx->src_converter->p_module);
+            vlc_object_release(ctx->src_converter);
+        }
+        if (ctx->cvpx_pool)
+            CVPixelBufferPoolRelease(ctx->cvpx_pool);
         if (ctx->ci_ctx)
             [ctx->ci_ctx release];
-        if (ctx->dest_cvpx_pool)
-            CVPixelBufferPoolRelease(ctx->dest_cvpx_pool);
         free(ctx);
     }
     free(filter->p_sys);
@@ -492,8 +649,19 @@ Close(vlc_object_t *obj)
 
     if (!ctx->fchain)
     {
+        if (ctx->dst_converter)
+        {
+            module_unneed(ctx->dst_converter, ctx->dst_converter->p_module);
+            vlc_object_release(ctx->dst_converter);
+            CVPixelBufferPoolRelease(ctx->outconv_cvpx_pool);
+        }
+        if (ctx->src_converter)
+        {
+            module_unneed(ctx->src_converter, ctx->src_converter->p_module);
+            vlc_object_release(ctx->src_converter);
+        }
+        CVPixelBufferPoolRelease(ctx->cvpx_pool);
         [ctx->ci_ctx release];
-        CVPixelBufferPoolRelease(ctx->dest_cvpx_pool);
         free(ctx);
         var_Destroy(filter->obj.parent, "ci-filters-ctx");
     }
