@@ -198,9 +198,13 @@ cvpxpool_create(const video_format_t *fmt, unsigned count)
     switch (fmt->i_chroma)
     {
         case VLC_CODEC_CVPX_UYVY:
+            cvpx_format = kCVPixelFormatType_422YpCbCr8;
+            break;
         case VLC_CODEC_CVPX_NV12:
-        case VLC_CODEC_CVPX_I420:
             cvpx_format = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+            break;
+        case VLC_CODEC_CVPX_I420:
+            cvpx_format = kCVPixelFormatType_420YpCbCr8Planar;
             break;
         case VLC_CODEC_CVPX_BGRA:
             cvpx_format = kCVPixelFormatType_32BGRA;
