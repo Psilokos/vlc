@@ -3909,7 +3909,7 @@ dnl
 dnl  VideoToolbox plugins
 AC_CHECK_HEADERS(VideoToolbox/VideoToolbox.h, [
     VLC_ADD_PLUGIN([videotoolbox])
-    VLC_ADD_PLUGIN([cvpx])
+    VLC_ADD_PLUGIN([cvpx_i420])
   ])
 
 dnl

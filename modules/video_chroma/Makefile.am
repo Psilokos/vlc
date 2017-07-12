@@ -132,8 +132,8 @@ chroma_LTLIBRARIES += \
 	libd3d11_surface_plugin.la
 endif
 
-libcvpx_plugin_la_SOURCES = video_chroma/cvpx.c \
+libcvpx_i420_plugin_la_SOURCES = video_chroma/cvpx_i420.c \
 	codec/vt_utils.c codec/vt_utils.h
-libcvpx_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(chromadir)' -Wl,-framework,Foundation -Wl,-framework,VideoToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo
-EXTRA_LTLIBRARIES += libcvpx_plugin.la
-chroma_LTLIBRARIES += $(LTLIBcvpx)
+libcvpx_i420_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(chromadir)' -Wl,-framework,Foundation -Wl,-framework,VideoToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo
+EXTRA_LTLIBRARIES += libcvpx_i420_plugin.la
+chroma_LTLIBRARIES += $(LTLIBcvpx_i420)
