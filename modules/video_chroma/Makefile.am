@@ -137,3 +137,9 @@ libcvpx_i420_plugin_la_SOURCES = video_chroma/cvpx_i420.c \
 libcvpx_i420_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(chromadir)' -Wl,-framework,Foundation -Wl,-framework,VideoToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo
 EXTRA_LTLIBRARIES += libcvpx_i420_plugin.la
 chroma_LTLIBRARIES += $(LTLIBcvpx_i420)
+
+libcvpx_cvpx_plugin_la_SOURCES = video_chroma/cvpx_cvpx.c \
+	codec/vt_utils.c codec/vt_utils.h
+libcvpx_cvpx_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(chromadir)' -Wl,-framework,Foundation -Wl,-framework,VideoToolbox -Wl,-framework,CoreMedia -Wl,-framework,CoreVideo
+EXTRA_LTLIBRARIES += libcvpx_cvpx_plugin.la
+chroma_LTLIBRARIES += $(LTLIBcvpx_cvpx)
