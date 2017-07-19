@@ -149,6 +149,7 @@ static void DeleteDR(vlc_va_t *va, void *hwctx)
 static int CreateDR(vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
                     const es_format_t *fmt, picture_sys_t *p_sys)
 {
+    fprintf(stderr, "VAAPI DR DECODER: pix_fmt != AV_PIX_FMT_VAAPI_VLD? %d || p_sys == NULL? %d\n", pix_fmt != AV_PIX_FMT_VAAPI_VLD, p_sys == NULL);
     if (pix_fmt != AV_PIX_FMT_VAAPI_VLD || p_sys == NULL)
         return VLC_EGENERIC;
 
@@ -270,6 +271,7 @@ static void DRMNativeDestroy(VANativeDisplay native)
 static int Create(vlc_va_t *va, AVCodecContext *ctx, enum PixelFormat pix_fmt,
                   const es_format_t *fmt, picture_sys_t *p_sys)
 {
+    fprintf(stderr, "VAAPI DECODER\n");
     if (pix_fmt != AV_PIX_FMT_VAAPI_VLD || p_sys)
         return VLC_EGENERIC;
 

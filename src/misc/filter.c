@@ -191,8 +191,16 @@ video_splitter_t *video_splitter_New( vlc_object_t *p_this,
 
     video_format_Copy( &p_splitter->fmt, p_fmt );
 
+    p_splitter->psz_name = strdup(psz_name);
+
     /* */
-    p_splitter->p_module = module_need( p_splitter, "video splitter", psz_name, true );
+    char psz_chained_name[strlen(psz_name) + sizeof(", chain")];
+    sprintf( psz_chained_name, "%s,chain", psz_name );
+
+    msg_Err(p_this, "VOUT SPLITTER NEW");
+
+    p_splitter->p_module =
+        module_need( p_splitter, "video splitter", psz_chained_name, true );
     if( ! p_splitter->p_module )
     {
         video_splitter_Delete( p_splitter );
@@ -207,6 +215,7 @@ void video_splitter_Delete( video_splitter_t *p_splitter )
     if( p_splitter->p_module )
         module_unneed( p_splitter, p_splitter->p_module );
 
+    free(p_splitter->psz_name);
     video_format_Clean( &p_splitter->fmt );
 
     vlc_object_release( p_splitter );

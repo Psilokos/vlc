@@ -126,6 +126,7 @@ static int Open (vlc_object_t *obj)
     vd->info.has_pictures_invalid = false;
     vd->info.subpicture_chromas = spu_chromas;
     vd->pool = Pool;
+    fprintf(stderr, "gl vd=%p with pool=%p\n", vd, Pool(vd, 1));
     vd->prepare = PictureRender;
     vd->display = PictureDisplay;
     vd->control = Control;

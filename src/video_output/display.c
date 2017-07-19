@@ -81,6 +81,7 @@ static vout_display_t *vout_display_New(vlc_object_t *obj,
 {
     /* */
     vout_display_t *vd = vlc_custom_create(obj, sizeof(*vd), "vout display" );
+    fprintf(stderr, "new vd=%p\n", vd);
 
     /* */
     video_format_Copy(&vd->source, fmt);
@@ -1429,7 +1430,11 @@ static picture_pool_t *SplitterPool(vout_display_t *vd, unsigned count)
 {
     vout_display_sys_t *sys = vd->sys;
     if (!sys->pool)
-        sys->pool = picture_pool_NewFromFormat(&vd->fmt, count);
+    {
+        sys->pool = picture_pool_NewFromFormat(&vd->fmt, count); // SHITTY SOFT POOL
+        /* sys->pool = vout_display_Pool(sys->display[0], count + 1); */
+    }
+    fprintf(stderr, "splitterpool=%p\n", sys->pool);
     return sys->pool;
 }
 static void SplitterPrepare(vout_display_t *vd,
@@ -1540,6 +1545,7 @@ vout_display_t *vout_NewSplitter(vout_thread_t *vout,
     if (!splitter)
         return NULL;
 
+    fprintf(stderr, "source: %4.4s\n", (char *)&source->i_chroma);
     /* */
     vout_display_t *wrapper =
         DisplayNew(vout, source, state, module, true, NULL,
@@ -1548,6 +1554,8 @@ vout_display_t *vout_NewSplitter(vout_thread_t *vout,
         video_splitter_Delete(splitter);
         return NULL;
     }
+    var_Create(vout, "qweqweqwe-display", VLC_VAR_DOINHERIT | VLC_VAR_ADDRESS);
+    var_SetAddress(vout, "qweqweqwe-display", wrapper);
     vout_display_sys_t *sys = malloc(sizeof(*sys));
     if (!sys)
         abort();

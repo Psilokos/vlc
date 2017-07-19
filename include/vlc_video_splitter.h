@@ -74,6 +74,9 @@ struct video_splitter_t
     /* Module properties */
     module_t        *p_module;
 
+    /* Name of the "video splitter" shortcut that is requested, can be NULL */
+    char const      *psz_name;
+
     /* configuration */
     config_chain_t  *p_cfg;
 
