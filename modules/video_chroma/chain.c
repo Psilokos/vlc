@@ -32,15 +32,21 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_filter.h>
+#include <vlc_modules.h>
 #include <vlc_mouse.h>
 #include <vlc_picture.h>
+#include <vlc_picture_pool.h>
+#include <vlc_video_splitter.h>
+#include <vlc_vout_wrapper.h>
 
 /*****************************************************************************
  * Module descriptor
  *****************************************************************************/
 static int       ActivateConverter  ( vlc_object_t * );
 static int       ActivateFilter     ( vlc_object_t * );
+static int       ActivateSplitter   ( vlc_object_t * );
 static void      Destroy            ( vlc_object_t * );
+static void      DestroySplitter    ( vlc_object_t * );
 
 vlc_module_begin ()
     set_description( N_("Video filtering using a chain of video filter modules") )
@@ -49,6 +55,9 @@ vlc_module_begin ()
     add_submodule ()
         set_capability( "video filter", 0 )
         set_callbacks( ActivateFilter, Destroy )
+    add_submodule ()
+        set_capability( "video splitter", 0 )
+        set_callbacks( ActivateSplitter, DestroySplitter )
 vlc_module_end ()
 
 /*****************************************************************************
@@ -81,6 +90,13 @@ struct filter_sys_t
 {
     filter_chain_t *p_chain;
     filter_t *p_video_filter;
+};
+
+struct video_splitter_sys_t
+{
+    filter_t *p_src_converter;
+    filter_t *p_dst_converter;
+    video_splitter_t *p_video_splitter;
 };
 
 /* Restart filter callback */
@@ -206,6 +222,234 @@ static void Destroy( vlc_object_t *p_this )
                                   RestartFilterCallback );
     filter_chain_Delete( p_filter->p_sys->p_chain );
     free( p_filter->p_sys );
+}
+
+static int
+SplitterMouse( video_splitter_t *p_splitter,
+               vlc_mouse_t *p_mouse, int i_index,
+               vlc_mouse_t const *p_old, vlc_mouse_t const *p_new)
+{
+    video_splitter_t *p_real = p_splitter->p_sys->p_video_splitter;
+    return p_real->pf_mouse(p_real, p_mouse, i_index, p_old, p_new);
+}
+
+/* prout */
+#include <assert.h>
+static filter_t *
+SplitterNewConverter( vlc_object_t *p_this, bool b_use_display_pool,
+                      es_format_t *p_fmt_in, es_format_t *p_fmt_out );
+static int
+prout(video_splitter_t *p_splitter)
+{
+    video_splitter_sys_t *p_sys = p_splitter->p_sys;
+    es_format_t fmt_io;
+
+    es_format_InitFromVideo( &fmt_io, &p_splitter->fmt );
+
+    p_sys->p_dst_converter =
+        SplitterNewConverter(p_splitter, true, &p_sys->p_src_converter->fmt_out, &fmt_io);
+    if (!p_sys->p_dst_converter)
+        return VLC_EGENERIC;
+    return VLC_SUCCESS;
+}
+/* */
+
+static int
+SplitterSplit(video_splitter_t *p_splitter,
+              picture_t *pp_dst[], picture_t *p_src)
+{
+    video_splitter_sys_t *p_sys = p_splitter->p_sys;
+
+    p_src = p_sys->p_src_converter->
+        pf_video_filter(p_sys->p_src_converter, p_src);
+    if (!p_src)
+        return VLC_EGENERIC;
+
+    if (p_sys->p_video_splitter->
+        pf_filter(p_sys->p_video_splitter, pp_dst, p_src))
+        return VLC_EGENERIC;
+
+    if (!p_sys->p_dst_converter && !prout(p_splitter))
+        assert(!"PROUT PROUT PROUT");
+
+    int i = 0;
+    while (i < p_sys->p_video_splitter->i_output)
+    {
+        pp_dst[i] = p_sys->p_dst_converter->
+            pf_video_filter(p_sys->p_dst_converter, pp_dst[i]);
+        if (!pp_dst[i++])
+            break;
+    }
+
+    if (i == p_sys->p_video_splitter->i_output)
+        return VLC_SUCCESS;
+
+    while (i--)
+        picture_Release(pp_dst[i]);
+    return VLC_EGENERIC;
+}
+
+static picture_t *
+SplitterConverterBufferNew(filter_t *p_filter)
+{
+    assert(var_InheritAddress(p_filter, "qweqweqwe-display"));
+    return !p_filter->owner.sys
+        ? picture_NewFromFormat(&p_filter->fmt_out.video)
+        : picture_pool_Get(vout_display_Pool(var_InheritAddress(p_filter, "qweqweqwe-display"), 1));
+}
+
+static int
+SplitterPictureNew(video_splitter_t *p_splitter, picture_t *pp_pics[])
+{
+    int i = 0;
+    while (i < p_splitter->i_output)
+    {
+        video_format_t *p_fmt =
+            &p_splitter->p_sys->p_src_converter->fmt_out.video;
+
+        pp_pics[i] = picture_NewFromFormat(p_fmt);
+        if (!pp_pics[i++])
+            break;
+    }
+
+    if (i == p_splitter->i_output)
+        return VLC_SUCCESS;
+
+    while (i--)
+        picture_Release(pp_pics[i]);
+    return VLC_EGENERIC;
+}
+
+static void
+SplitterPictureDelete(video_splitter_t *p_splitter, picture_t *pp_pics[])
+{
+    for (int i = 0; i < p_splitter->i_output; ++i)
+        picture_Release(pp_pics[i]);
+}
+
+static filter_t *
+SplitterNewConverter( vlc_object_t *p_this, bool b_use_display_pool,
+                      es_format_t *p_fmt_in, es_format_t *p_fmt_out )
+{
+    filter_t *p_converter;
+
+    p_converter = vlc_object_create(p_this, sizeof(filter_t));
+    if (!p_converter)
+        return NULL;
+
+    es_format_Copy( &p_converter->fmt_in, p_fmt_in );
+    es_format_Copy( &p_converter->fmt_out, p_fmt_out );
+
+    p_converter->owner.sys = (void *)(!b_use_display_pool ? 0ULL : ~0ULL);
+    p_converter->owner.video.buffer_new = SplitterConverterBufferNew;
+
+    p_converter->p_module =
+        module_need(p_converter, "video converter", NULL, false);
+    if (!p_converter->p_module)
+    {
+        vlc_object_release(p_converter);
+        return NULL;
+    }
+
+    return p_converter;
+}
+
+static int ActivateSplitter( vlc_object_t *p_this )
+{
+    video_splitter_t *p_splitter = (video_splitter_t *)p_this;
+    if (!p_splitter->psz_name)
+        return VLC_EGENERIC;
+
+    fprintf(stderr, "%4.4s\n", (char *)&p_splitter->fmt.i_chroma);
+    video_splitter_sys_t *p_sys = calloc(1, sizeof(*p_sys));
+    if (!p_sys)
+        return VLC_ENOMEM;
+    p_splitter->p_sys = p_sys;
+
+    /* Now try chroma format list */
+    es_format_t fmt_io;
+    es_format_t fmt_mid;
+    int i_ret = VLC_EGENERIC;
+    for( int i = 0; pi_allowed_chromas[i]; i++ )
+    {
+        const vlc_fourcc_t i_chroma = pi_allowed_chromas[i];
+        msg_Dbg( p_splitter, "Trying to use chroma %4.4s as middle man",
+                 (char *)&i_chroma );
+
+        es_format_InitFromVideo( &fmt_io, &p_splitter->fmt );
+        es_format_InitFromVideo( &fmt_mid, &p_splitter->fmt );
+        fmt_mid.i_codec        =
+        fmt_mid.video.i_chroma = i_chroma;
+        fmt_mid.video.i_rmask  = 0;
+        fmt_mid.video.i_gmask  = 0;
+        fmt_mid.video.i_bmask  = 0;
+        video_format_FixRgb(&fmt_mid.video);
+
+        p_sys->p_src_converter =
+            SplitterNewConverter( p_this, false, &fmt_io, &fmt_mid );
+        if (!p_sys->p_src_converter)
+            goto error;
+
+        /* p_sys->p_dst_converter = */
+        /*     SplitterNewConverter(p_this, true, &fmt_mid, &fmt_io); */
+        /* if (!p_sys->p_dst_converter) */
+        /*     goto error; */
+
+        p_sys->p_video_splitter =
+            video_splitter_New(p_this, p_splitter->psz_name, &fmt_mid.video);
+        if (!p_sys->p_video_splitter)
+            goto error;
+
+        p_sys->p_video_splitter->pf_picture_new = SplitterPictureNew;
+        p_sys->p_video_splitter->pf_picture_del = SplitterPictureDelete;
+
+        p_splitter->i_output = p_sys->p_video_splitter->i_output;
+        p_splitter->p_output = p_sys->p_video_splitter->p_output;
+        for (int i = 0; i < p_splitter->i_output; ++i)
+            p_splitter->p_output[i].fmt.i_chroma = p_splitter->fmt.i_chroma;
+
+        if (p_sys->p_video_splitter->pf_mouse)
+            p_splitter->pf_mouse = SplitterMouse;
+        p_splitter->pf_filter = SplitterSplit;
+
+        es_format_Clean( &fmt_mid );
+        i_ret = VLC_SUCCESS;
+        break;
+
+    error:
+        if (p_sys->p_dst_converter)
+        {
+            module_unneed(p_sys->p_dst_converter, p_sys->p_dst_converter->p_module);
+            vlc_object_release(p_sys->p_dst_converter);
+        }
+        if (p_sys->p_src_converter)
+        {
+            module_unneed(p_sys->p_src_converter, p_sys->p_src_converter->p_module);
+            vlc_object_release(p_sys->p_src_converter);
+        }
+        es_format_Clean(&fmt_mid);
+    }
+
+    if (i_ret)
+        free(p_sys);
+    return i_ret;
+}
+
+static void DestroySplitter( vlc_object_t *p_this )
+{
+    video_splitter_t *p_splitter = (video_splitter_t *)p_this;
+
+    video_splitter_Delete(p_splitter->p_sys->p_video_splitter);
+    if (p_splitter->p_sys->p_dst_converter) // prout
+    { // prout
+        module_unneed(p_splitter->p_sys->p_dst_converter,
+                      p_splitter->p_sys->p_dst_converter->p_module);
+        vlc_object_release(p_splitter->p_sys->p_dst_converter);
+    } // prout
+    module_unneed(p_splitter->p_sys->p_src_converter,
+                  p_splitter->p_sys->p_src_converter->p_module);
+    vlc_object_release(p_splitter->p_sys->p_src_converter);
+    free(p_splitter->p_sys);
 }
 
 /*****************************************************************************

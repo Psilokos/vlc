@@ -240,6 +240,7 @@ vout_thread_t *vout_Request(vlc_object_t *object,
 
         if (cfg->change_fmt) {
             vout_control_cmd_t cmd;
+            fprintf(stderr, "sending vout ctrl reinit\n");
             vout_control_cmd_Init(&cmd, VOUT_CONTROL_REINIT);
             cmd.u.cfg = cfg;
 
@@ -1559,6 +1560,7 @@ static int ThreadReinit(vout_thread_t *vout,
 
     vout->p->original = original;
     vout->p->dpb_size = cfg->dpb_size;
+    fprintf(stderr, "-------------------------------REINIT VOUT THREAD-----------------------------\n");
     if (ThreadStart(vout, &state)) {
         ThreadClean(vout);
         return VLC_EGENERIC;

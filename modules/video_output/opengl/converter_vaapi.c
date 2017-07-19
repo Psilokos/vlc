@@ -206,6 +206,8 @@ tc_vaegl_update(const opengl_tex_converter_t *tc, GLuint *textures,
             priv->last.egl_images[i] = egl_images[i];
     }
 
+    fprintf(stderr, "UPDATE\n");
+
     return VLC_SUCCESS;
 
 error:
@@ -245,6 +247,7 @@ tc_vaegl_get_pool(const opengl_tex_converter_t *tc, unsigned requested_count)
     }
 
     vlc_vaapi_DestroyImage(o, priv->vadpy, va_image.image_id);
+    fprintf(stderr, "TC_VAEGL_GET_POOL\n");
     return pool;
 }
 

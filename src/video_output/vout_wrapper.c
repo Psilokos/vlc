@@ -131,6 +131,7 @@ int vout_InitWrapper(vout_thread_t *vout)
                                       kept_picture;
     const unsigned display_pool_size = allow_dr ? __MAX(VOUT_MAX_PICTURES,
                                                         reserved_picture + decoder_picture) : 3;
+    fprintf(stderr, "vd in wrapper: %p\n", vd);
     picture_pool_t *display_pool = vout_display_Pool(vd, display_pool_size);
     if (display_pool == NULL)
         return VLC_EGENERIC;
@@ -146,6 +147,7 @@ int vout_InitWrapper(vout_thread_t *vout)
         sys->dpb_size     = picture_pool_GetSize(display_pool) - reserved_picture;
         sys->decoder_pool = display_pool;
         sys->display_pool = display_pool;
+        fprintf(stderr, "SHOULD WORK pool=%p\n", display_pool);
     } else if (!sys->decoder_pool) {
         sys->decoder_pool =
             picture_pool_NewFromFormat(&vd->source,
