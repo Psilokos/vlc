@@ -46,6 +46,13 @@ OPENGL_COMMONCFLAGS += -DHAVE_VA_DRM
 endif
 endif
 endif
+if HAVE_VDPAU
+OPENGL_COMMONLDFLAGS += $(LIBDL)
+OPENGL_COMMONLIBS += libvlc_vdpau.la
+OPENGL_COMMONSOURCES += video_output/opengl/converter_vdpau.c \
+	hw/vdpau/vlc_vdpau.h
+OPENGL_COMMONCFLAGS += $(VDPAU_CFLAGS) -DVLCGL_CONV_VDPAU
+endif
 
 if HAVE_DECKLINK
 libdecklinkoutput_plugin_la_SOURCES = video_output/decklink.cpp

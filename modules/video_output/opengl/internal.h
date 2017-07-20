@@ -346,4 +346,9 @@ int
 opengl_tex_converter_vaapi_init(opengl_tex_converter_t *tc);
 #endif
 
+#ifdef VLCGL_CONV_VDPAU
+int
+opengl_tex_converter_vdpau_init(opengl_tex_converter_t *tc);
+#endif
+
 #endif /* include-guard */
