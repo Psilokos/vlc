@@ -361,7 +361,7 @@ static playlist_item_t *NextItem( playlist_t *p_playlist )
         }
     }
     /* "Automatic" item change ( next ) */
-    else
+    else if (get_current_status_node(p_playlist) == p_playlist->p_playing)
     {
         bool b_loop = var_GetBool( p_playlist, "loop" );
         bool b_repeat = var_GetBool( p_playlist, "repeat" );
