@@ -79,6 +79,40 @@ static void playlist_vaControl( playlist_t *p_playlist, int i_query,
             p_node = get_current_status_node( p_playlist );
             assert( p_node );
         }
+
+        if ( p_item && p_node != p_playlist->p_playing )
+        {
+            if ( p_item->p_input->i_type == ITEM_TYPE_FILE )
+            {
+                playlist_item_t *p_parent = p_item->p_parent;
+                int i = 0;
+
+                while (i < p_parent->i_children &&
+                       p_parent->pp_children[i] != p_item)
+                    ++i;
+                assert(i < p_parent->i_children);
+
+                int i_pos = PLAYLIST_END;
+                for (int j = p_parent->i_children - 1; j >= i; --j)
+                    i_pos = playlist_NodeAddCopy( p_playlist,
+                                                  p_parent->pp_children[j],
+                                                  p_playlist->p_playing,
+                                                  i_pos ) - 1;
+
+                p_item = p_playlist->p_playing->pp_children[i_pos];
+                p_node = p_playlist->p_playing;
+            }
+            else if ( p_item->p_input->i_type != ITEM_TYPE_DIRECTORY ||
+                      !p_item->p_input->b_net )
+            {
+                int i_pos = p_playlist->p_playing->i_children;
+                playlist_NodeAddCopy(p_playlist, p_item,
+                                     p_playlist->p_playing, PLAYLIST_END);
+                p_item = p_playlist->p_playing->pp_children[i_pos];
+                p_node = p_playlist->p_playing;
+            }
+        }
+
         pl_priv(p_playlist)->request.i_skip = 0;
         pl_priv(p_playlist)->request.b_request = true;
         pl_priv(p_playlist)->request.p_node = p_node;
