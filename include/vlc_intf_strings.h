@@ -62,7 +62,7 @@
 #define I_MENU_ABOUT N_("&About")
 
 /* Playlist popup */
-#define I_POP_PLAY N_("Play")
+#define I_POP_PLAY N_("Play and Add to Playlist")
 #define I_POP_DEL N_("Remove Selected")
 #define I_POP_INFO N_("Information...")
 #define I_POP_NEWFOLDER I_DIR_OR_FOLDER( N_("Create Directory..."), \
