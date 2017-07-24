@@ -526,6 +526,9 @@ playlist_item_t * playlist_NodeAddInput( playlist_t *p_playlist,
 {
     PL_ASSERT_LOCKED;
 
+    fprintf(stderr, "playlist_NodeAddInput %d %s in %s  \n",
+            p_input->i_type, p_input->psz_name, p_parent->p_input->psz_name);
+
     assert( p_input );
     assert( p_parent && p_parent->i_children != -1 );
 

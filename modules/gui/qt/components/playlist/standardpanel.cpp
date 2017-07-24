@@ -153,6 +153,7 @@ void StandardPLPanel::popupPlView( const QPoint &point )
 {
     QPoint globalPoint = currentView->viewport()->mapToGlobal( point );
     QModelIndex index = currentView->indexAt( point );
+    fprintf(stderr, "popupPlView\n");
     if ( !index.isValid() )
     {
         currentView->clearSelection();
@@ -191,6 +192,13 @@ bool StandardPLPanel::popup( const QPoint &point )
 
     ADD_MENU_ENTRY( QIcon( ":/menu/pause" ), qtr("Pause"),
                     VLCModelSubInterface::ACTION_PAUSE )
+
+    /* TODO: icons for browse and shrink */
+    ADD_MENU_ENTRY( QIcon ( ":/menu/play" ), qtr("Browse"),
+                    VLCModelSubInterface::ACTION_BROWSE )
+
+    ADD_MENU_ENTRY( QIcon ( ":/menu/play" ), qtr("Shrink"),
+                    VLCModelSubInterface::ACTION_SHRINK );
 
     ADD_MENU_ENTRY( QIcon( ":/menu/stream" ), qtr(I_POP_STREAM),
                     VLCModelSubInterface::ACTION_STREAM )
@@ -301,6 +309,11 @@ void StandardPLPanel::popupAction( QAction *action )
     /* first try to complete actions requiring missing parameters thru UI dialogs */
     switch( a.action )
     {
+    case VLCModelSubInterface::ACTION_BROWSE:
+    case VLCModelSubInterface::ACTION_SHRINK:
+        if ( index.isValid() )
+            activate( index );
+        break;
     case VLCModelSubInterface::ACTION_INFO:
         /* locally handled only */
         if( index.isValid() )
@@ -494,6 +507,7 @@ void StandardPLPanel::setRootItem( playlist_item_t *p_item, bool b )
 
 void StandardPLPanel::browseInto( const QModelIndex &index )
 {
+    fprintf(stderr, "browseInto\n");
     if( currentView == iconView || currentView == listView || currentView == picFlowView )
     {
 
@@ -518,6 +532,7 @@ void StandardPLPanel::browseInto( const QModelIndex &index )
 
 void StandardPLPanel::browseInto()
 {
+    fprintf(stderr, "browseInto()\n");
     browseInto( (currentRootIndexPLId != -1 && currentView != treeView) ?
                  model->indexByPLID( currentRootIndexPLId, 0 ) :
                  QModelIndex() );
@@ -756,6 +771,7 @@ void StandardPLPanel::setWaiting( bool b )
 
 void StandardPLPanel::updateViewport()
 {
+    fprintf(stderr, "qweqweqweqwe\n");
     /* A single update on parent widget won't work */
     currentView->viewport()->repaint();
 }
@@ -790,13 +806,19 @@ void StandardPLPanel::cycleViews()
 
 void StandardPLPanel::activate( const QModelIndex &index )
 {
+    fprintf(stderr, "qweqweqweqwe\n");
     if( currentView->model() == model )
     {
         /* If we are not a leaf node */
         if( !index.data( VLCModelSubInterface::LEAF_NODE_ROLE ).toBool() )
         {
             if( currentView != treeView )
+            {
+                fprintf(stderr, "qweqwe\n");
                 browseInto( index );
+            }
+            else
+                treeView->setExpanded( index, !treeView->isExpanded( index ) );
         }
         else
         {
@@ -821,9 +843,15 @@ void StandardPLPanel::browseInto( int i_pl_item_id )
     QModelIndex index = model->indexByPLID( i_pl_item_id, 0 );
 
     if( currentView == treeView )
+    {
+        fprintf(stderr, "expand\n");
         treeView->setExpanded( index, true );
+    }
     else
+    {
+        fprintf(stderr, "browse\n");
         browseInto( index );
+    }
 
     lastActivatedPLItemId = -1;
 }

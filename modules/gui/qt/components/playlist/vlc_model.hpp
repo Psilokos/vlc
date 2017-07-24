@@ -80,8 +80,11 @@ public:
     virtual QString getTitle( const QModelIndex &index ) const = 0;
     enum actions
     {
-        ACTION_PLAY = 1,
+        ACTION_PLAYANDADDTOPLAYLIST = 1,
+        ACTION_PLAY,
         ACTION_PAUSE,
+        ACTION_BROWSE,
+        ACTION_SHRINK,
         ACTION_STREAM,
         ACTION_SAVE,
         ACTION_INFO,

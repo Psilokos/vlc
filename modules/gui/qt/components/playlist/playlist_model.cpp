@@ -1018,7 +1018,7 @@ bool PLModel::action( QAction *action, const QModelIndexList &indexes )
 
 bool PLModel::isSupportedAction( actions action, const QModelIndex &index ) const
 {
-    AbstractPLItem const* item = VLCModel::getItem( index );
+    AbstractPLItem * item = VLCModel::getItem( index );
 
     switch ( action )
     {
@@ -1029,7 +1029,7 @@ bool PLModel::isSupportedAction( actions action, const QModelIndex &index ) cons
         return rowCount();
     case ACTION_PLAY:
     {
-        if( !item )
+        if( !item || item->inputItem()->i_type == ITEM_TYPE_NODE )
             return false;
 
         {
@@ -1050,6 +1050,9 @@ bool PLModel::isSupportedAction( actions action, const QModelIndex &index ) cons
 
         return playlist_Status( THEPL ) == PLAYLIST_RUNNING;
     }
+    case ACTION_BROWSE:
+    case ACTION_SHRINK:
+        return item && item->inputItem()->i_type == ITEM_TYPE_NODE;
     case ACTION_STREAM:
     case ACTION_SAVE:
     case ACTION_INFO:
