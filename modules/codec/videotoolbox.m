@@ -319,15 +319,27 @@ static picture_t * RemoveOneFrameFromDPB(decoder_sys_t *p_sys)
 
         /* Compute time if missing */
         if (p_field->date == VLC_TS_INVALID)
+        {
+            fprintf(stderr, "MISSING\n");
             p_field->date = date_Get(&p_sys->pts);
+        }
         else
+        { 
+            fprintf(stderr, "TIME OK %lld\n", p_field->date);
             date_Set(&p_sys->pts, p_field->date);
+        }
 
         /* Set next picture time, in case it is missing */
         if (p_info->i_length)
+        {
+            fprintf(stderr, "NXT PIC TIME OK\n");
             date_Set(&p_sys->pts, p_field->date + p_info->i_length);
+        }
         else
+        {
+            fprintf(stderr, "NXT PIC TIME MISSING, inc pts by %d\n", p_info->i_num_ts);
             date_Increment(&p_sys->pts, p_info->i_num_ts);
+        }
 
         *pp_ret_last = p_field;
         pp_ret_last = &p_field->p_next;
@@ -400,7 +412,10 @@ static frame_info_t * CreateReorderInfo(decoder_t *p_dec, const block_t *p_block
     p_info->b_forced = (p_block->i_flags & BLOCK_FLAG_END_OF_SEQUENCE);
 
     if (date_Get(&p_sys->pts) == VLC_TS_INVALID)
+    {
+        fprintf(stderr, "WEIRD SHIT\n");
         date_Set(&p_sys->pts, p_block->i_dts);
+    }
 
     return p_info;
 }
@@ -440,6 +455,7 @@ static void OnDecodedFrame(decoder_t *p_dec, frame_info_t *p_info)
         {
             picture_t *p_next = p_fields->p_next;
             p_fields->p_next = NULL;
+            fprintf(stderr, "decoder_QueueVideo: %lld\n", p_fields->date);
             decoder_QueueVideo(p_dec, p_fields);
             p_fields = p_next;
         } while(p_fields != NULL);
@@ -660,6 +676,16 @@ static int StartVideoToolbox(decoder_t *p_dec)
     CFDictionarySetValue(p_sys->decoderConfiguration,
                          kVTDecompressionPropertyKey_DeinterlaceMode,
                          kVTDecompressionProperty_DeinterlaceMode_Temporal);
+    CFDictionarySetValue(p_sys->decoderConfiguration,
+                         kVTDecompressionPropertyKey_ThreadCount,
+                         CFSTR("4"));
+    CFDictionarySetValue(p_sys->decoderConfiguration,
+                         kVTDecompressionPropertyKey_ReducedFrameDelivery,
+                         CFSTR("0.1"));
+    CFDictionarySetValue(p_sys->decoderConfiguration,
+                         kVTDecompressionPropertyKey_OnlyTheseFrames,
+                         kVTDecompressionProperty_OnlyTheseFrames_NonDroppableFrames);
+
 
     /* create video format description */
     status = CMVideoFormatDescriptionCreate(kCFAllocatorDefault,
@@ -693,7 +719,7 @@ static int StartVideoToolbox(decoder_t *p_dec)
                      kCVPixelBufferHeightKey, i_video_height);
     cfdict_set_int32(p_sys->destinationPixelBufferAttributes,
                      kCVPixelBufferBytesPerRowAlignmentKey,
-                     i_video_width * 2);
+                     16);
 
     /* setup decoder callback record */
     VTDecompressionOutputCallbackRecord decoderCallbackRecord;
@@ -726,6 +752,8 @@ static int StartVideoToolbox(decoder_t *p_dec)
 
     if (status == noErr)
         CFRelease(supportedProps);
+
+    fprintf(stderr, "SUCCESS\n");
 
     return VLC_SUCCESS;
 }
@@ -1094,7 +1122,10 @@ static CMSampleBufferRef VTSampleBufferCreate(decoder_t *p_dec,
     CMSampleBufferRef sample_buf = NULL;
     CMTime pts;
     if(!p_dec->p_sys->b_poc_based_reorder && p_block->i_pts == VLC_TS_INVALID)
+    {
+        fprintf(stderr, "block->dts=%lld\n", p_block->i_dts);
         pts = CMTimeMake(p_block->i_dts, CLOCK_FREQ);
+    }
     else
         pts = CMTimeMake(p_block->i_pts, CLOCK_FREQ);
 
@@ -1520,6 +1551,7 @@ static void DecoderCallback(void *decompressionOutputRefCon,
         p_info->p_picture = p_pic;
 
         p_pic->date = pts.value;
+        fprintf(stderr, "pts.value=%lld\n", pts.value);
         p_pic->b_force = p_info->b_forced;
         p_pic->b_progressive = p_sys->b_handle_deint || p_info->b_progressive;
         if(!p_pic->b_progressive)

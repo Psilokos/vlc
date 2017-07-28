@@ -314,6 +314,7 @@ static inline int64_t MP4_TrackGetDTS( demux_t *p_demux, mp4_track_t *p_track )
         else
         {
             i_dts += i_sample * p_chunk->p_sample_delta_dts[i_index];
+            /* fprintf(stderr, "dts=%lld (%u * %lld)\n", i_dts, i_sample, p_chunk->p_sample_delta_dts[i_index]); */
             break;
         }
     }
@@ -336,6 +337,8 @@ static inline int64_t MP4_TrackGetDTS( demux_t *p_demux, mp4_track_t *p_track )
 
         if( i_dts < 0 ) i_dts = 0;
     }
+
+    /* fprintf(stderr, "MP4_rescale: dts=%lld timescale=%lld\n", i_dts, p_track->i_timescale); */
 
     return MP4_rescale( i_dts, p_track->i_timescale, CLOCK_FREQ );
 }
@@ -1266,13 +1269,20 @@ static int DemuxTrack( demux_t *p_demux, mp4_track_t *tk, uint64_t i_readpos,
 
             /* dts */
             p_block->i_dts = VLC_TS_0 + i_current_nzdts;
+            fprintf(stderr, "MP4 demux: %lld\n", p_block->i_dts);
             /* pts */
             if( MP4_TrackGetPTSDelta( p_demux, tk, &i_delta ) )
+            {
                 p_block->i_pts = p_block->i_dts + i_delta;
+                fprintf(stderr, "pts: %lld = dts + %lld\n", p_block->i_pts, i_delta);
+            }
             else if( tk->fmt.i_cat != VIDEO_ES )
                 p_block->i_pts = p_block->i_dts;
             else
+            {
                 p_block->i_pts = VLC_TS_INVALID;
+                fprintf(stderr, "FUCK!!!!\n");
+            }
 
             MP4_Block_Send( p_demux, tk, p_block );
         }
@@ -2094,6 +2104,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                     *va_arg(args, int64_t *) =
                             MP4_rescale( BOXDATA(p_load)->i_duration,
                                          p_sys->track[i].i_timescale, CLOCK_FREQ );
+                    fprintf(stderr, "\t\t\t\t================================SUCCESS\n");
                     return VLC_SUCCESS;
                 }
             }

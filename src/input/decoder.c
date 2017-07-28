@@ -1055,6 +1055,7 @@ static int DecoderPlayVideo( decoder_t *p_dec, picture_t *p_picture,
             vout_Flush( p_vout, p_picture->date );
             p_owner->i_last_rate = i_rate;
         }
+        fprintf(stderr, "decpic: %p\n", p_picture);
         vout_PutPicture( p_vout, p_picture );
     }
     else
@@ -1324,12 +1325,15 @@ static void DecoderDecode( decoder_t *p_dec, block_t *p_block )
     switch( ret )
     {
         case VLCDEC_SUCCESS:
+            fprintf(stderr, "decoder success\n");
             p_owner->pf_update_stat( p_owner, 1, 0 );
             break;
         case VLCDEC_ECRITICAL:
+            fprintf(stderr, "decoder error\n");
             p_owner->error = true;
             break;
         case VLCDEC_RELOAD:
+            fprintf(stderr, "decoder reload\n");
             RequestReload( p_dec );
             if( unlikely( p_block == NULL ) )
                 break;

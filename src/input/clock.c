@@ -267,7 +267,7 @@ void input_clock_Update( input_clock_t *cl, vlc_object_t *p_log,
         b_reset_reference= true;
     }
 
-    /* */
+    
     if( b_reset_reference )
     {
         cl->i_next_drift_update = VLC_TS_INVALID;
@@ -429,9 +429,14 @@ int input_clock_ConvertTS( vlc_object_t *p_object, input_clock_t *cl,
     const mtime_t i_ts_buffering = cl->i_buffering_duration * cl->i_rate / INPUT_RATE_DEFAULT;
     const mtime_t i_ts_delay = cl->i_pts_delay + ClockGetTsOffset( cl );
 
+    fprintf(stderr, "input_clock_ConvertTS: %lld\n", *pi_ts0);
+
     /* */
     if( *pi_ts0 > VLC_TS_INVALID )
     {
+        fprintf(stderr, "pi_ts0: %lld=%lld+%lld+%lld+%lld\n",
+                *pi_ts0 + AvgGet(&cl->drift) + cl->ref.i_system + i_ts_delay,
+                *pi_ts0, AvgGet( &cl->drift ), cl->ref.i_system, i_ts_delay);
         *pi_ts0 = ClockStreamToSystem( cl, *pi_ts0 + AvgGet( &cl->drift ) );
         if( *pi_ts0 > cl->i_ts_max )
             cl->i_ts_max = *pi_ts0;
@@ -606,6 +611,7 @@ static mtime_t ClockStreamToSystem( input_clock_t *cl, mtime_t i_stream )
     if( !cl->b_has_reference )
         return VLC_TS_INVALID;
 
+    fprintf(stderr, "====================++>%lld\n", cl->ref.i_system);
     return ( i_stream - cl->ref.i_stream ) * cl->i_rate / INPUT_RATE_DEFAULT +
            cl->ref.i_system;
 }

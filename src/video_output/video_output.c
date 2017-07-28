@@ -849,15 +849,16 @@ static int ThreadDisplayPreparePicture(vout_thread_t *vout, bool reuse, bool fra
             decoded = picture_Hold(vout->p->displayed.decoded);
         } else {
             decoded = picture_fifo_Pop(vout->p->decoder_fifo);
+            fprintf(stderr, "decoded: %p\n", decoded);
             if (decoded) {
                 if (is_late_dropped && !decoded->b_force) {
                     const mtime_t predicted = mdate() + 0; /* TODO improve */
                     const mtime_t late = predicted - decoded->date;
                     if (late > VOUT_DISPLAY_LATE_THRESHOLD) {
                         msg_Warn(vout, "picture is too late to be displayed (missing %"PRId64" ms)", late/1000);
-                        picture_Release(decoded);
-                        vout_statistic_AddLost(&vout->p->statistic, 1);
-                        continue;
+                        /* picture_Release(decoded); */
+                        /* vout_statistic_AddLost(&vout->p->statistic, 1); */
+                        /* continue; */
                     } else if (late > 0) {
                         msg_Dbg(vout, "picture might be displayed late (missing %"PRId64" ms)", late/1000);
                     }
@@ -868,7 +869,10 @@ static int ThreadDisplayPreparePicture(vout_thread_t *vout, bool reuse, bool fra
         }
 
         if (!decoded)
+        {
+            fprintf(stderr, "NO DECODED PIC AVAILABLE\n");
             break;
+        }
         reuse = false;
 
         if (vout->p->displayed.decoded)
@@ -884,13 +888,22 @@ static int ThreadDisplayPreparePicture(vout_thread_t *vout, bool reuse, bool fra
     vlc_mutex_unlock(&vout->p->filter.lock);
 
     if (!picture)
+    {
+        fprintf(stderr, "FAIL\n");
         return VLC_EGENERIC;
+    }
 
     assert(!vout->p->displayed.next);
     if (!vout->p->displayed.current)
+    {
+        fprintf(stderr, "qweqwe\n");
         vout->p->displayed.current = picture;
+    }
     else
+    {
+        fprintf(stderr, "azeaze\n");
         vout->p->displayed.next    = picture;
+    }
     return VLC_SUCCESS;
 }
 
@@ -900,6 +913,7 @@ static int ThreadDisplayRenderPicture(vout_thread_t *vout, bool is_forced)
     vout_display_t *vd = vout->p->display.vd;
 
     picture_t *torender = picture_Hold(vout->p->displayed.current);
+    fprintf(stderr, "torender %p\n", torender);
 
     vout_chrono_Start(&vout->p->render);
 
@@ -1106,8 +1120,10 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
             return VLC_EGENERIC;
 
     if (!paused || frame_by_frame)
+    {
         while (!vout->p->displayed.next && !ThreadDisplayPreparePicture(vout, false, frame_by_frame))
             ;
+    }
 
     const mtime_t date = mdate();
     const mtime_t render_delay = vout_chrono_GetHigh(&vout->p->render) + VOUT_MWAIT_TOLERANCE;
@@ -1116,6 +1132,9 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
     mtime_t date_next = VLC_TS_INVALID;
     if (!paused && vout->p->displayed.next) {
         date_next = vout->p->displayed.next->date - render_delay;
+        fprintf(stderr, "DIFF_PICS=%lld\n", vout->p->displayed.next->date - vout->p->displayed.current->date);
+        fprintf(stderr, "%lld - %lld = %lld < %lld\n", vout->p->displayed.next->date, render_delay, date_next, date);
+        fprintf(stderr, "DIFF=%lld\n", date - date_next);
         if (date_next /* + 0 FIXME */ <= date)
             drop_next_frame = true;
     }
@@ -1149,6 +1168,7 @@ static int ThreadDisplayPicture(vout_thread_t *vout, mtime_t *deadline)
     }
 
     if (drop_next_frame) {
+        fprintf(stderr, "dropping next frame\n");
         picture_Release(vout->p->displayed.current);
         vout->p->displayed.current = vout->p->displayed.next;
         vout->p->displayed.next    = NULL;

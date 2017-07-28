@@ -355,6 +355,7 @@ static int FileControl( stream_t *p_access, int i_query, va_list args )
             else
                 *pi_64 = var_InheritInteger (p_access, "file-caching");
             *pi_64 *= 1000;
+            fprintf(stderr, "STREAM_GET_PTS_DELAY=============================%lld\n", *pi_64);
             break;
 
         case STREAM_SET_PAUSE_STATE:
