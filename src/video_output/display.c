@@ -1544,6 +1544,18 @@ vout_display_t *vout_NewSplitter(vout_thread_t *vout,
         video_splitter_Delete(splitter);
         return NULL;
     }
+
+    if (wrapper->fmt.i_chroma != splitter->fmt.i_chroma)
+    {
+        wrapper->fmt.i_chroma = splitter->fmt.i_chroma;
+        if (VoutDisplayResetRender(wrapper))
+        {
+            free(wrapper->owner.sys);
+            vout_display_Delete(wrapper);
+            return NULL;
+        }
+    }
+
     vout_display_sys_t *sys = malloc(sizeof(*sys));
     if (!sys)
         abort();
