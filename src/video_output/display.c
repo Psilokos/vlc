@@ -1464,8 +1464,18 @@ static void SplitterDisplay(vout_display_t *vd,
 }
 static int SplitterControl(vout_display_t *vd, int query, va_list args)
 {
-    (void)vd; (void)query; (void)args;
-    return VLC_EGENERIC;
+    for (int i = 0; i < vd->sys->count; ++i)
+        if (query == VOUT_DISPLAY_CHANGE_FULLSCREEN)
+        {
+            va_list tmp_args;
+            va_copy(tmp_args, args);
+            int ret = vd->sys->display[i]->control(vd->sys->display[i],
+                                                   query, tmp_args);
+            va_end(tmp_args);
+            if (ret)
+                return ret;
+        }
+    return VLC_SUCCESS;
 }
 static void SplitterManage(vout_display_t *vd)
 {
