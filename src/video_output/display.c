@@ -1599,12 +1599,14 @@ vout_display_t *vout_NewSplitter(vout_thread_t *vout,
         };
         const video_splitter_output_t *output = &splitter->p_output[i];
         vout_display_state_t ostate;
+        int halign = output->window.i_align & VOUT_ALIGN_HMASK;
+        int valign = output->window.i_align & VOUT_ALIGN_VMASK;
 
         memset(&ostate, 0, sizeof(ostate));
         ostate.cfg.is_fullscreen = false;
         ostate.cfg.display = state->cfg.display;
-        ostate.cfg.align.horizontal = 0; /* TODO */
-        ostate.cfg.align.vertical = 0; /* TODO */
+        ostate.cfg.align.horizontal = halign;
+        ostate.cfg.align.vertical = valign / 3 + 2;
         ostate.cfg.is_display_filled = true;
         ostate.cfg.zoom.num = 1;
         ostate.cfg.zoom.den = 1;
