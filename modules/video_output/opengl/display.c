@@ -212,6 +212,9 @@ static int Control (vout_display_t *vd, int query, va_list ap)
         vlc_assert_unreachable();
 #endif
 
+      case VOUT_DISPLAY_CHANGE_FULLSCREEN:
+          return vout_window_SetFullScreen(sys->gl->surface, va_arg(ap, int));
+
       case VOUT_DISPLAY_CHANGE_DISPLAY_SIZE:
       case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED:
       case VOUT_DISPLAY_CHANGE_ZOOM:
