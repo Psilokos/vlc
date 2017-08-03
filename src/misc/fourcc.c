@@ -381,6 +381,18 @@ static const vlc_fourcc_t p_VAAPI_420_fallback[] = {
     VLC_CODEC_VAAPI_420, VLC_CODEC_I420,
 };
 
+static const vlc_fourcc_t p_VDPAU_420_fallback[] = {
+    VLC_CODEC_VDPAU_VIDEO_420, VLC_CODEC_I420, 0,
+};
+
+static const vlc_fourcc_t p_VDPAU_422_fallback[] = {
+    VLC_CODEC_VDPAU_VIDEO_422, VLC_CODEC_I422, 0,
+};
+
+static const vlc_fourcc_t p_VDPAU_444_fallback[] = {
+    VLC_CODEC_VDPAU_VIDEO_444, VLC_CODEC_I444, 0,
+};
+
 static const vlc_fourcc_t p_I440_fallback[] = {
     VLC_CODEC_I440,
     VLC_CODEC_YUV_PLANAR_420,
