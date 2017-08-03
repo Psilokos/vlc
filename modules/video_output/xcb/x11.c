@@ -454,6 +454,8 @@ static int Control (vout_display_t *vd, int query, va_list ap)
 
     switch (query)
     {
+    case VOUT_DISPLAY_CHANGE_FULLSCREEN:
+        return vout_window_SetFullScreen(sys->embed, va_arg(ap, int));
     case VOUT_DISPLAY_CHANGE_DISPLAY_SIZE:
     {
         const vout_display_cfg_t *p_cfg =
