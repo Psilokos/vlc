@@ -362,6 +362,8 @@ static int Control (vout_display_t *vd, int query, va_list ap)
     @autoreleasepool {
         switch (query)
         {
+            case VOUT_DISPLAY_CHANGE_FULLSCREEN:
+                return vout_window_SetFullScreen(sys->embed, va_arg(ap, int));
             case VOUT_DISPLAY_CHANGE_DISPLAY_FILLED:
             case VOUT_DISPLAY_CHANGE_ZOOM:
             case VOUT_DISPLAY_CHANGE_SOURCE_ASPECT:
