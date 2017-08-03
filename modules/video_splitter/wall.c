@@ -123,10 +123,29 @@ static int Open( vlc_object_t *p_this )
     video_splitter_t *p_splitter = (video_splitter_t*)p_this;
     video_splitter_sys_t *p_sys;
 
-    const vlc_chroma_description_t *p_chroma =
-        vlc_fourcc_GetChromaDescription( p_splitter->fmt.i_chroma );
-    if( p_chroma == NULL || p_chroma->plane_count == 0 )
-        return VLC_EGENERIC;
+    vlc_chroma_description_t const *p_chroma_desc =
+        vlc_fourcc_GetChromaDescription(p_splitter->fmt.i_chroma);
+    if (!p_chroma_desc || !p_chroma_desc->plane_count)
+    {
+        vlc_fourcc_t const *p_fallbacks =
+            vlc_fourcc_GetYUVFallback(p_splitter->fmt.i_chroma);
+        if (!p_fallbacks)
+            return VLC_EGENERIC;
+
+        unsigned int i = 0;
+        while (p_fallbacks[i])
+        {
+            p_chroma_desc = vlc_fourcc_GetChromaDescription(p_fallbacks[i]);
+            if (p_chroma_desc && p_chroma_desc->plane_count)
+            {
+                p_splitter->fmt.i_chroma = p_fallbacks[i];
+                break;
+            }
+            ++i;
+        }
+        if (!p_fallbacks[i])
+            return VLC_EGENERIC;
+    }
 
     p_splitter->p_sys = p_sys = malloc( sizeof(*p_sys) );
     if( !p_sys )
