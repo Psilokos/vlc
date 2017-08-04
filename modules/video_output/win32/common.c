@@ -196,6 +196,15 @@ void UpdateRects(vout_display_t *vd,
     place_cfg.display.width = rect.right;
     place_cfg.display.height = rect.bottom;
 
+    /* Reverse vertical alignment as the GL tex are Y inverted */
+    if (sys->b_gl)
+    {
+        if (place_cfg.align.vertical == VOUT_DISPLAY_ALIGN_TOP)
+            place_cfg.align.vertical = VOUT_DISPLAY_ALIGN_BOTTOM;
+        else if (place_cfg.align.vertical == VOUT_DISPLAY_ALIGN_BOTTOM)
+            place_cfg.align.vertical = VOUT_DISPLAY_ALIGN_TOP;
+    }
+
     vout_display_place_t place;
     vout_display_PlacePicture(&place, source, &place_cfg, false);
 

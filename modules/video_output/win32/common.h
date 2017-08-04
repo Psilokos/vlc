@@ -62,6 +62,8 @@ typedef struct vout_display_sys_win32_t
     bool is_first_display;
     bool is_on_top;
 
+    bool b_gl;
+
     /* screensaver system settings to be restored when vout is closed */
     UINT i_spi_screensaveactive;
 
