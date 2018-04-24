@@ -21,6 +21,7 @@ libcroppadd_plugin_la_SOURCES = video_filter/croppadd.c
 liberase_plugin_la_SOURCES = video_filter/erase.c
 libextract_plugin_la_SOURCES = video_filter/extract.c
 libextract_plugin_la_LIBADD = $(LIBM)
+libfg_seg_plugin_la_SOURCES = video_filter/bg_mixture_models.c
 libfps_plugin_la_SOURCES = video_filter/fps.c
 libfreeze_plugin_la_SOURCES = video_filter/freeze.c
 libgaussianblur_plugin_la_SOURCES = video_filter/gaussianblur.c
@@ -79,6 +80,7 @@ video_filter_LTLIBRARIES = \
 	libedgedetection_plugin.la \
 	liberase_plugin.la \
 	libextract_plugin.la \
+	libfg_seg_plugin.la \
 	libgradient_plugin.la \
 	libgrain_plugin.la \
 	libgaussianblur_plugin.la \
