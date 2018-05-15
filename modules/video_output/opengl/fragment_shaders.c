@@ -402,10 +402,10 @@ tc_base_prepare_shader(const opengl_tex_converter_t *tc,
             continue;
 
         struct pl_shader_var sv = res->variables[i];
-        struct ra_var var = sv.var;
+        struct pl_var var = sv.var;
 
         // libplacebo doesn't need anything else anyway
-        if (var.type != RA_VAR_FLOAT)
+        if (var.type != PL_VAR_FLOAT)
             continue;
         if (var.dim_m > 1 && var.dim_m != var.dim_v)
             continue;
@@ -607,7 +607,7 @@ opengl_fragment_shader_init_impl(opengl_tex_converter_t *tc, GLenum tex_target,
         struct pl_shader *sh = tc->pl_sh;
         pl_shader_color_map(sh, &pl_color_map_default_params,
                 pl_color_space_from_video_format(&tc->fmt),
-                pl_color_space_unknown, false);
+                pl_color_space_unknown, NULL, false);
 
         const struct pl_shader_res *res = tc->pl_sh_res = pl_shader_finalize(sh);
 
@@ -615,7 +615,7 @@ opengl_fragment_shader_init_impl(opengl_tex_converter_t *tc, GLenum tex_target,
         tc->uloc.pl_vars = calloc(res->num_variables, sizeof(GLint));
         for (int i = 0; i < res->num_variables; i++) {
             struct pl_shader_var sv = res->variables[i];
-            ADDF("uniform %s %s;\n", ra_var_glsl_type_name(sv.var), sv.var.name);
+            ADDF("uniform %s %s;\n", pl_var_glsl_type_name(sv.var), sv.var.name);
         }
 
         // We can't handle these yet, but nothing we use requires them, either
