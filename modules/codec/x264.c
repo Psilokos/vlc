@@ -846,7 +846,7 @@ static int  Open ( vlc_object_t *p_this )
     char *psz_profile = var_GetString( p_enc, SOUT_CFG_PREFIX "profile" );
     if( psz_profile )
     {
-        const int mask = x264_bit_depth > 8 ? X264_CSP_HIGH_DEPTH : 0;
+        const int mask = X264_BIT_DEPTH > 8 ? X264_CSP_HIGH_DEPTH : 0;
 
 
 # ifdef MODULE_NAME_IS_x26410b
