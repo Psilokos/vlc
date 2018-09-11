@@ -20,6 +20,9 @@ endif
 
 libdsm: libdsm-$(LIBDSM_VERSION).tar.gz .sum-libdsm
 	$(UNPACK)
+ifdef HAVE_ANDROID
+	$(APPLY) $(SRC)/libdsm/fix-build-android.patch
+endif
 	$(MOVE)
 
 DEPS_libdsm = libtasn1 iconv
