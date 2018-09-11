@@ -1,0 +1,31 @@
+From b7babba49a19b0057f3d3713fc48d3287cc246d4 Mon Sep 17 00:00:00 2001
+From: Victorien Le Couviour--Tuffet <victorien.lecouviour.tuffet@gmail.com>
+Date: Tue, 11 Sep 2018 17:38:25 +0200
+Subject: [PATCH] build: HAVE_IFADDRS defined by getifaddrs presence
+
+Before this was determined by the presence of a struct member, but for
+android target, the NDK will provide the struct but not necessarily the
+related functions.
+---
+ configure.ac | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 489e233..7cb9029 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -258,9 +258,8 @@ AC_CHECK_TYPES([struct pollfd],,,
+ ])
+ 
+ 
+-AC_CHECK_MEMBER([struct ifaddrs.ifa_addr],[
+-    AC_DEFINE([HAVE_IFADDRS],[1],[Define to 1 if you have ifaddrs.ifa_addr function])],
+-    [],[[#include <ifaddrs.h>]])
++AC_CHECK_FUNC([getifaddrs], [
++	      AC_DEFINE([HAVE_IFADDRS], [1], [Define to 1 if you have getifaddrs function.])])
+ 
+ 
+ AC_SUBST([LIBSOCKET])
+-- 
+2.18.0
+
