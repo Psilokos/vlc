@@ -19,6 +19,9 @@ $(TARBALLS)/microdns-$(LIBMICRODNS_VERSION).tar.gz:
 
 microdns: microdns-$(LIBMICRODNS_VERSION).tar.gz .sum-microdns
 	$(UNPACK)
+ifdef HAVE_ANDROID
+	$(APPLY) $(SRC)/microdns/fix-build-android.patch
+endif
 	$(MOVE)
 
 .microdns: microdns
