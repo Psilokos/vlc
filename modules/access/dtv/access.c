@@ -29,9 +29,6 @@
 #include <vlc_input.h>
 #include <vlc_plugin.h>
 #include <vlc_dialog.h>
-#ifdef HAVE_SEARCH_H
-#include <search.h>
-#endif
 
 #include "dtv/dtv.h"
 
@@ -656,11 +653,6 @@ static uint32_t var_InheritCodeRate (vlc_object_t *obj, const char *varname)
     return VLC_FEC_AUTO;
 }
 
-static int modcmp (const void *a, const void *b)
-{
-    return strcasecmp (a, *(const char *const *)b);
-}
-
 static const char *var_InheritModulation (vlc_object_t *obj, const char *var)
 {
     char *mod = var_InheritString (obj, var);
@@ -668,12 +660,12 @@ static const char *var_InheritModulation (vlc_object_t *obj, const char *var)
         return "";
 
     size_t n = sizeof (modulation_vlc) / sizeof (modulation_vlc[0]);
-    const char *const *p = lfind (mod, modulation_vlc, &n, sizeof (mod), modcmp);
-    if (p != NULL)
-    {
-        free (mod);
-        return *p;
-    }
+    for (int i = 0; i < n; ++i)
+        if (!strcasecmp(modulation_vlc[i], mod))
+        {
+            free (mod);
+            return modulation_vlc[i];
+        }
 
     /* Backward compatibility with VLC < 1.2 */
     const char *str;
