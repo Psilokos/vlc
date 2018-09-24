@@ -510,6 +510,9 @@ ifdef HAVE_CROSS_COMPILE
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> $@
 	echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> $@
 endif
+ifdef HAVE_ANDROID
+	echo "set(CMAKE_INSTALL_LIBDIR lib)" >> $@
+endif
 
 # Default pattern rules
 .sum-%: $(SRC)/%/SHA512SUMS
