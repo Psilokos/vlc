@@ -487,7 +487,7 @@ void *tfind( const void *key, const void **rootp, int(*cmp)(const void *, const 
 void *tdelete( const void *key, void **rootp, int(*cmp)(const void *, const void *) );
 void twalk( const void *root, void(*action)(const void *nodep, VISIT which, int depth) );
 #endif /* HAVE_SEARCH_H */
-#ifndef HAVE_TDESTROY
+#if !defined(HAVE_TDESTROY) || defined(__ANDROID__)
 void tdestroy( void *root, void (*free_node)(void *nodep) );
 #endif
 
