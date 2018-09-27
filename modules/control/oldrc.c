@@ -128,7 +128,6 @@ struct intf_sys_t
     vlc_mutex_t       status_lock;
     int               i_last_state;
     playlist_t        *p_playlist;
-    input_thread_t    *p_input;
     bool              b_input_buffering;
 
 #ifdef _WIN32
@@ -350,7 +349,6 @@ static int Activate( vlc_object_t *p_this )
     p_sys->i_last_state = PLAYLIST_STOPPED;
     p_sys->b_input_buffering = false;
     p_sys->p_playlist = p_playlist;
-    p_sys->p_input = NULL;
 
     /* Non-buffered stdout */
     setvbuf( stdout, (char *)NULL, _IOLBF, 0 );
@@ -391,12 +389,6 @@ static void Deactivate( vlc_object_t *p_this )
     vlc_cancel( p_sys->thread );
     var_DelCallback( p_sys->p_playlist, "volume", VolumeChanged, p_intf );
     vlc_join( p_sys->thread, NULL );
-
-    if( p_sys->p_input != NULL )
-    {
-        var_DelCallback( p_sys->p_input, "intf-event", InputEvent, p_intf );
-        vlc_object_release( p_sys->p_input );
-    }
 
     net_ListenClose( p_sys->pi_socket_listen );
     if( p_sys->i_socket != -1 )
@@ -512,6 +504,8 @@ static void *Run( void *data )
 
     /* Register commands that will be cleaned up upon object destruction */
     RegisterCallbacks( p_intf );
+    vlc_player_t *player = vlc_playlist_GetPlayer( p_sys->p_playlist );
+    input_item_t *item = NULL;
 
     /* status callbacks */
 
@@ -533,34 +527,29 @@ static void *Run( void *data )
         canc = vlc_savecancel( );
 
         /* Manage the input part */
-        if( p_sys->p_input == NULL )
+        if( item == NULL )
         {
-            p_sys->p_input = playlist_CurrentInput( p_sys->p_playlist );
+            item = vlc_player_GetCurrentMedia( player );
             /* New input has been registered */
-            if( p_sys->p_input )
+            if( item )
             {
-                char *psz_uri = input_item_GetURI( input_GetItem( p_sys->p_input ) );
+                input_item_Hold( item );
+                char *psz_uri = input_item_GetURI( item );
                 msg_rc( STATUS_CHANGE "( new input: %s )", psz_uri );
                 free( psz_uri );
-
-                var_AddCallback( p_sys->p_input, "intf-event", InputEvent, p_intf );
             }
         }
 
-        int state;
-        if( p_sys->p_input != NULL
-         && ((state = var_GetInteger( p_sys->p_input, "state")) == ERROR_S
-          || state == END_S) )
+        if( !vlc_player_IsStarted( player ) )
         {
-            var_DelCallback( p_sys->p_input, "intf-event", InputEvent, p_intf );
-            vlc_object_release( p_sys->p_input );
-            p_sys->p_input = NULL;
+            input_item_Release( item );
+            item = NULL;
 
             p_sys->i_last_state = PLAYLIST_STOPPED;
             msg_rc( STATUS_CHANGE "( stop state: 0 )" );
         }
 
-        if( p_sys->p_input != NULL )
+        if( item != NULL )
         {
             playlist_t *p_playlist = p_sys->p_playlist;
 
@@ -588,9 +577,9 @@ static void *Run( void *data )
             }
         }
 
-        if( p_sys->p_input && b_showpos )
+        if( item && b_showpos )
         {
-            i_newpos = 100 * var_GetFloat( p_sys->p_input, "position" );
+            i_newpos = 100 * vlc_player_GetPosition( player );
             if( i_oldpos != i_newpos )
             {
                 i_oldpos = i_newpos;
@@ -664,14 +653,13 @@ static void *Run( void *data )
         }
         else if( !strcmp( psz_cmd, "info" ) )
         {
-            if( p_sys->p_input )
+            if( item )
             {
                 int i;
-                vlc_mutex_lock( &input_GetItem(p_sys->p_input)->lock );
-                for ( i = 0; i < input_GetItem(p_sys->p_input)->i_categories; i++ )
+                vlc_mutex_lock( &item->lock );
+                for ( i = 0; i < item->i_categories; i++ )
                 {
-                    info_category_t *p_category = input_GetItem(p_sys->p_input)
-                                                        ->pp_categories[i];
+                    info_category_t *p_category = item->pp_categories[i];
                     info_t *p_info;
 
                     msg_rc( "+----[ %s ]", p_category->psz_name );
@@ -682,7 +670,7 @@ static void *Run( void *data )
                     msg_rc( "| " );
                 }
                 msg_rc( "+----[ end of stream info ]" );
-                vlc_mutex_unlock( &input_GetItem(p_sys->p_input)->lock );
+                vlc_mutex_unlock( &item->lock );
             }
             else
             {
@@ -722,7 +710,7 @@ static void *Run( void *data )
             }
             else
             {
-                msg_rc( "%s", input_GetItem(p_sys->p_input)->psz_name );
+                msg_rc( "%s", item->psz_name );
             }
         }
         else if( !strcmp( psz_cmd, "longhelp" ) || !strncmp( psz_cmd, "h", 1 )
