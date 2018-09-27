@@ -162,14 +162,16 @@ static void *RunIntf( void *data )
         if( b_change )
         {
 #warning FIXME: refactor this plugin as a video filter!
-            input_thread_t *p_input = pl_CurrentInput( p_intf );
-            if( p_input )
+            vlc_player_t *player = vlc_playlist_GetPlayer( pl_Get( p_intf ) );
+            vlc_player_Lock( player );
+            if( vlc_player_IsStarted( player ) )
             {
-                vout_thread_t *p_vout;
+                vout_thread_t **vouts;
+                size_t count = vlc_player_GetVouts(player, &vouts);
 
-                p_vout = input_GetVout( p_input );
-                if( p_vout )
+                for( size_t i = 0; i < count; ++i )
                 {
+                    vout_thread_t *p_vout = vouts[i];
                     if( psz_type != NULL )
                     {
                         var_Create( p_vout, "transform-type", VLC_VAR_STRING );
@@ -182,9 +184,10 @@ static void *RunIntf( void *data )
                                    psz_type != NULL ? "transform" : "" );
                     vlc_object_release( p_vout );
                 }
-                vlc_object_release( p_input );
+                free(vouts);
                 i_oldx = i_x;
             }
+            vlc_player_Unlock( player );
         }
 
         vlc_restorecancel( canc );
