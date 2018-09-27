@@ -103,7 +103,8 @@ struct intf_sys_t
     int             p_pipe_fds[2];
     vlc_mutex_t     lock;
     vlc_thread_t    thread;
-    input_thread_t *p_input;
+    struct vlc_player_listener_id *player_listener;
+    bool            has_input;
 
     vlc_tick_t      i_last_input_pos; /* Only access from input thread */
     vlc_tick_t      i_last_input_pos_event; /* Same as above */
