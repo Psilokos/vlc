@@ -477,11 +477,13 @@ GenerateKey(vlc_keystore *p_keystore, JNIEnv *p_env, jstring jstringAlias,
             jkeyGen = NULL;
     jclass jstringClass = NULL;
     jobjectArray jarray = NULL;
+    jobject ref;
 
     jbuilder = NEW_OBJECT(KeyGenParameterSpec.Builder, jstringAlias,
                           fields.KeyProperties.PURPOSE_ENCRYPT |
                           fields.KeyProperties.PURPOSE_DECRYPT);
-    CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setKeySize, 256);
+    ref = CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setKeySize, 256);
+    DEL_LREF(ref);
 
     jstringClass = (*p_env)->FindClass(p_env, "java/lang/String");
     if (CHECK_EXCEPTION())
@@ -493,11 +495,13 @@ GenerateKey(vlc_keystore *p_keystore, JNIEnv *p_env, jstring jstringAlias,
 
     (*p_env)->SetObjectArrayElement(p_env, jarray, 0,
                                     fields.KeyProperties.BLOCK_MODE_CBC);
-    CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setBlockModes, jarray);
+    ref = CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setBlockModes, jarray);
+    DEL_LREF(ref);
 
     (*p_env)->SetObjectArrayElement(p_env, jarray, 0,
                                     fields.KeyProperties.ENCRYPTION_PADDING_PKCS7);
-    CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setEncryptionPaddings, jarray);
+    ref = CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.setEncryptionPaddings, jarray);
+    DEL_LREF(ref);
     jspec = CALL_OBJ(jbuilder, KeyGenParameterSpec.Builder.build);
     if (CHECK_EXCEPTION())
         goto end;
