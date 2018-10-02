@@ -95,6 +95,11 @@ static struct
         jint DECRYPT_MODE;
     } Cipher;
     jstring VLC_CIPHER;
+    struct
+    {
+        jclass clazz;
+        jmethodID dumpReferenceTables;
+    } VMDebug;
 } fields;
 static jobject s_jkey = NULL;
 
@@ -242,6 +247,10 @@ InitJni(vlc_keystore *p_keystore, JNIEnv *p_env)
     GET_ID(GetMethodID, Cipher.getIV, "getIV", "()[B");
     GET_CONST_INT(Cipher.ENCRYPT_MODE, "ENCRYPT_MODE");
     GET_CONST_INT(Cipher.DECRYPT_MODE, "DECRYPT_MODE");
+
+    GET_CLASS("dalvik/system/VMDebug");
+    GET_GLOBAL_CLASS(VMDebug);
+    GET_ID(GetStaticMethodID, VMDebug.dumpReferenceTables, "dumpReferenceTables", "()V");
 
     DEL_LREF(clazz);
 
@@ -531,6 +540,7 @@ end:
     if (jkeyGen != NULL)
         DEL_LREF(jkeyGen);
 
+    (*p_env)->CallStaticVoidMethod(p_env, fields.VMDebug.clazz, fields.VMDebug.dumpReferenceTables);
     return jkey;
 }
 
