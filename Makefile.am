@@ -187,7 +187,7 @@ lcov-raw.out:
 
 lcov.out: lcov-raw.out
 	lcov -r lcov-raw.out -o lcov.out \
-		'*test*' 'contrib/*' '/usr/include/*'
+		'*test*' 'contrib/*' '/usr/include/*' 'modules/demux/mock.c'
 
 lcov: lcov.out
 	rm -Rf lcov lcov.tmp
