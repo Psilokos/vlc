@@ -627,6 +627,7 @@ static void MainLoopDemux( input_thread_t *p_input, bool *pb_changed )
     {
         msg_Dbg( p_input, "EOF reached" );
         p_priv->master->b_eof = true;
+        *pb_changed = true;
         es_out_Eos(p_priv->p_es_out);
     }
     else if( i_ret == VLC_DEMUXER_EGENERIC )
