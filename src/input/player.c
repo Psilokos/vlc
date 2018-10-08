@@ -70,6 +70,7 @@ struct vlc_player_input
     bool stop_async;
 
     enum vlc_player_state state;
+    enum vlc_player_error error;
     float rate;
     int capabilities;
     vlc_tick_t length;
@@ -84,7 +85,6 @@ struct vlc_player_input
     float cache;
 
     struct input_stats_t stats;
-
 
     vlc_tick_t audio_delay;
     vlc_tick_t subtitle_delay;
@@ -318,6 +318,7 @@ vlc_player_input_New(vlc_player_t *player, input_item_t *item)
     input->stop_async = false;
 
     input->state = VLC_PLAYER_STATE_IDLE;
+    input->error = VLC_PLAYER_ERROR_NONE;
     input->rate = 1.f;
     input->capabilities = 0;
     input->length = input->position_ms =
@@ -970,7 +971,7 @@ vlc_player_input_HandleDeadEvent(struct vlc_player_input *input)
         return;
     }
 
-    if (input->state != VLC_PLAYER_STATE_STOPPED)
+    if (input->error != VLC_PLAYER_ERROR_NONE)
         player->error_count++;
     else
         player->error_count = 0;
@@ -1029,8 +1030,9 @@ vlc_player_input_HandleStateEvent(struct vlc_player_input *input,
             input->state = VLC_PLAYER_STATE_STOPPED;
             break;
         case ERROR_S:
-            input->state = VLC_PLAYER_STATE_ERROR;
-            break;
+            input->error = VLC_PLAYER_ERROR_GENERIC;
+            vlc_player_SendEvent(player, on_error_changed, input->error);
+            return;
         default:
             vlc_assert_unreachable();
     }
@@ -1050,7 +1052,6 @@ vlc_player_input_HandleStateEvent(struct vlc_player_input *input,
         {
             case VLC_PLAYER_STATE_STARTED:
             case VLC_PLAYER_STATE_STOPPED:
-            case VLC_PLAYER_STATE_ERROR:
             case VLC_PLAYER_STATE_PLAYING:
                 /* Ignore these event in order to hide STOPPED -> STARTED ->
                  * PLAYING events when playing the next media. */
@@ -1589,6 +1590,13 @@ vlc_player_GetState(vlc_player_t *player)
 {
     vlc_player_assert_locked(player);
     return player->global_state;
+}
+
+enum vlc_player_error
+vlc_player_GetError(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    return input ? input->error : VLC_PLAYER_ERROR_NONE;
 }
 
 int

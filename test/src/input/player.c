@@ -90,6 +90,7 @@ struct report_subitems
 #define REPORT_LIST \
     X(input_item_t *, on_current_media_changed) \
     X(enum vlc_player_state, on_state_changed) \
+    X(enum vlc_player_error, on_error_changed) \
     X(float, on_buffering_changed) \
     X(float, on_rate_changed) \
     X(int, on_capabilities_changed) \
@@ -141,6 +142,7 @@ struct media_params
 
     bool can_seek;
     bool can_pause;
+    bool error;
 };
 
 #define DEFAULT_MEDIA_PARAMS(param_length) { \
@@ -149,6 +151,7 @@ struct media_params
     .length = param_length, \
     .can_seek = true, \
     .can_pause = true, \
+    .error = false, \
 }
 
 struct ctx
@@ -218,6 +221,14 @@ player_on_state_changed(vlc_player_t *player, enum vlc_player_state state,
 {
     struct ctx *ctx = get_ctx(player, data);
     VEC_PUSH(on_state_changed, state);
+}
+
+static void
+player_on_error_changed(vlc_player_t *player, enum vlc_player_error error,
+                        void *data)
+{
+    struct ctx *ctx = get_ctx(player, data);
+    VEC_PUSH(on_error_changed, error);
 }
 
 static void
@@ -585,9 +596,9 @@ create_mock_media(const char *name, const struct media_params *params)
     char *url;
     int ret = asprintf(&url,
         "mock://video_track_count=%zu;audio_track_count=%zu;"
-        "length=%"PRId64";can_seek=%d;can_pause=%d",
+        "length=%"PRId64";can_seek=%d;can_pause=%d;error=%d",
         params->video_tracks, params->audio_tracks, params->length,
-        params->can_seek, params->can_pause);
+        params->can_seek, params->can_pause, params->error);
     assert(ret != -1);
 
     input_item_t *item = input_item_New(url, name);
@@ -963,6 +974,7 @@ REPORT_LIST
     test_pause(&ctx);
     test_capabilities_pause(&ctx);
     test_capabilities_seek(&ctx);
+    test_error(&ctx);
 
     vlc_player_RemoveListener(player, listener);
     vlc_player_Unlock(player);

@@ -119,7 +119,12 @@ enum vlc_player_state
     VLC_PLAYER_STATE_STOPPED,
     VLC_PLAYER_STATE_PLAYING,
     VLC_PLAYER_STATE_PAUSED,
-    VLC_PLAYER_STATE_ERROR,
+};
+
+enum vlc_player_error
+{
+    VLC_PLAYER_ERROR_NONE,
+    VLC_PLAYER_ERROR_GENERIC,
 };
 
 enum vlc_player_seek_speed
@@ -160,6 +165,9 @@ struct vlc_player_cbs
                                      input_item_t *new_media, void *data);
 
     void (*on_state_changed)(vlc_player_t *player, enum vlc_player_state state,
+                             void *data);
+
+    void (*on_error_changed)(vlc_player_t *player, enum vlc_player_error error,
                              void *data);
 
     void (*on_buffering_changed)(vlc_player_t *player, float new_buffering,
@@ -419,6 +427,9 @@ vlc_player_Resume(vlc_player_t *player);
 
 VLC_API enum vlc_player_state
 vlc_player_GetState(vlc_player_t *player);
+
+VLC_API enum vlc_player_error
+vlc_player_GetError(vlc_player_t *player);
 
 /**
  * Get the started state.
