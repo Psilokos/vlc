@@ -76,7 +76,6 @@ struct vlc_player_input
 
     vlc_tick_t position_ms;
     float position_percent;
-    vlc_tick_t position_date;
 
     bool recording;
 
@@ -322,7 +321,6 @@ vlc_player_input_New(vlc_player_t *player, input_item_t *item)
     input->rate = 1.f;
     input->capabilities = 0;
     input->length = input->position_ms =
-    input->position_date = VLC_TICK_INVALID;
     input->position_percent = 0.f;
 
     input->recording = false;
@@ -1127,7 +1125,6 @@ input_thread_events(input_thread_t *input_thread,
             {
                 input->position_ms = event->position.ms;
                 input->position_percent = event->position.percentage;
-                input->position_date = vlc_tick_now();
                 vlc_player_SendEvent(player, on_position_changed,
                                      input->position_ms,
                                      input->position_percent);
@@ -1680,8 +1677,7 @@ vlc_player_GetTime(vlc_player_t *player)
     if (!input || input->position_ms == VLC_TICK_INVALID)
         return VLC_TICK_INVALID;
 
-    return input->position_ms +
-           (vlc_tick_now() - input->position_date) * input->rate;
+    return input->position_ms;
 }
 
 float

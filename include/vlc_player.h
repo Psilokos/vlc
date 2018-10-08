@@ -226,10 +226,10 @@ struct vlc_player_cbs
                                  enum vlc_player_list_action action,
                                  vout_thread_t *vout, void *data);
 
-    void (*on_media_meta_changed)(vlc_player_t *player, input_item_t *item,
+    void (*on_media_meta_changed)(vlc_player_t *player, input_item_t *media,
                                  void *data);
 
-    void (*on_media_epg_changed)(vlc_player_t *player, input_item_t *item,
+    void (*on_media_epg_changed)(vlc_player_t *player, input_item_t *media,
                                 void *data);
 
     void (*on_subitems_changed)(vlc_player_t *player,
@@ -513,7 +513,7 @@ vlc_player_CanChangeRate(vlc_player_t *player)
  * Get the rewindable capability (Helper).
  */
 static inline bool
-vlc_player_canRewind(vlc_player_t *player)
+vlc_player_CanRewind(vlc_player_t *player)
 {
     return vlc_player_GetCapabilities(player) & VLC_PLAYER_CAP_REWIND;
 }
@@ -522,7 +522,7 @@ vlc_player_canRewind(vlc_player_t *player)
  * Get the recordable capability (Helper).
  */
 static inline bool
-vlc_player_canRecord(vlc_player_t *player)
+vlc_player_CanRecord(vlc_player_t *player)
 {
     return vlc_player_GetCapabilities(player) & VLC_PLAYER_CAP_RECORD;
 }
