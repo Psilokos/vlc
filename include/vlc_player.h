@@ -1126,6 +1126,13 @@ vlc_player_aout_Mute(vlc_player_t *player, bool mute)
     return ret;
 }
 
+static inline int
+vlc_player_aout_ToggleMute(vlc_player_t *player)
+{
+    return vlc_player_aout_Mute(player,
+                                !vlc_player_aout_IsMuted(player));
+}
+
 VLC_API int
 vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add);
 
