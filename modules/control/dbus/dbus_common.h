@@ -31,6 +31,7 @@
 
 #include <vlc_common.h>
 #include <vlc_interface.h>
+#include <vlc_playlist_new.h>
 #include <dbus/dbus.h>
 
 #define DBUS_MPRIS_OBJECT_PATH "/org/mpris/MediaPlayer2"
@@ -38,7 +39,7 @@
 /* MACROS */
 
 #define INTF ((intf_thread_t *)p_this)
-#define PL   (INTF->p_sys->p_playlist)
+#define PL   (INTF->p_sys->playlist)
 
 #define DBUS_METHOD( method_function ) \
     static DBusHandlerResult method_function \
@@ -86,12 +87,12 @@
 #define ADD_INT64( i ) DBUS_ADD( DBUS_TYPE_INT64, i )
 #define ADD_BYTE( b ) DBUS_ADD( DBUS_TYPE_BYTE, b )
 
-#define MPRIS_TRACKID_FORMAT "/org/videolan/vlc/playlist/%d"
+#define MPRIS_TRACKID_FORMAT "/org/videolan/vlc/playlist/%lu"
 
 struct intf_sys_t
 {
     DBusConnection *p_conn;
-    playlist_t     *p_playlist;
+    vlc_playlist_t *playlist;
     bool            b_meta_read;
     dbus_int32_t    i_player_caps;
     dbus_int32_t    i_playing_state;
@@ -139,7 +140,8 @@ enum
 };
 
 int DemarshalSetPropertyValue( DBusMessage *p_msg, void *p_arg );
-int GetInputMeta( playlist_item_t *, DBusMessageIter *args );
+int GetInputMeta( vlc_playlist_t *, vlc_playlist_item_t *,
+                  DBusMessageIter *args );
 int AddProperty ( intf_thread_t *p_intf,
                   DBusMessageIter *p_container,
                   const char* psz_property_name,
