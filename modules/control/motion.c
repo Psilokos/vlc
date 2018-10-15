@@ -37,7 +37,8 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_interface.h>
-#include <vlc_playlist.h>
+#include <vlc_player.h>
+#include <vlc_playlist_new.h>
 #include <vlc_input.h>
 #include <vlc_vout.h>
 
@@ -162,13 +163,14 @@ static void *RunIntf( void *data )
         if( b_change )
         {
 #warning FIXME: refactor this plugin as a video filter!
-            vlc_player_t *player = vlc_playlist_GetPlayer( pl_Get( p_intf ) );
-            vlc_player_Lock( player );
-            if( vlc_player_IsStarted( player ) )
+            vlc_playlist_t *playlist = vlc_intf_GetMainPlaylist(p_intf);
+            vlc_player_t *player = vlc_playlist_GetPlayer(playlist);
+            vlc_player_Lock(player);
+            if (vlc_player_IsStarted(player))
             {
-                vout_thread_t **vouts;
-                size_t count = vlc_player_GetVouts(player, &vouts);
-
+                size_t count;
+                vout_thread_t **vouts =
+                    vlc_player_vout_HoldAll(player, &count);
                 for( size_t i = 0; i < count; ++i )
                 {
                     vout_thread_t *p_vout = vouts[i];
@@ -187,7 +189,7 @@ static void *RunIntf( void *data )
                 free(vouts);
                 i_oldx = i_x;
             }
-            vlc_player_Unlock( player );
+            vlc_player_Unlock(player);
         }
 
         vlc_restorecancel( canc );
