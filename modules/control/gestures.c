@@ -34,7 +34,8 @@
 #include <vlc_plugin.h>
 #include <vlc_interface.h>
 #include <vlc_vout.h>
-#include <vlc_playlist.h>
+#include <vlc_player.h>
+#include <vlc_playlist_new.h>
 #include <vlc_vector.h>
 #include <assert.h>
 
@@ -129,7 +130,8 @@ static int Open ( vlc_object_t *p_this )
         .on_vout_list_changed = OnVoutListChanged,
     };
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_intf));
     vlc_player_Lock(player);
     p_sys->player_listener = vlc_player_AddListener(player, &cbs, p_intf);
     if (!p_sys->player_listener)
@@ -177,7 +179,8 @@ static void Close ( vlc_object_t *p_this )
     intf_thread_t *p_intf = (intf_thread_t *)p_this;
     intf_sys_t *p_sys = p_intf->p_sys;
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_intf));
     vlc_player_Lock(player);
     vlc_player_RemoveListener(player, p_sys->player_listener);
     vlc_player_Unlock(player);
@@ -200,8 +203,8 @@ static void Close ( vlc_object_t *p_this )
 static void ProcessGesture( intf_thread_t *p_intf )
 {
     intf_sys_t *p_sys = p_intf->p_sys;
-    playlist_t *p_playlist = pl_Get( p_intf );
-    vlc_player_t *player = vlc_playlist_GetPlayer(p_playlist);
+    vlc_playlist_t *playlist = vlc_intf_GetMainPlaylist(p_intf);
+    vlc_player_t *player = vlc_playlist_GetPlayer(playlist);
 
     /* Do something */
     /* If you modify this, please try to follow this convention:
@@ -252,27 +255,27 @@ static void ProcessGesture( intf_thread_t *p_intf )
         }
 
         case GESTURE(LEFT,DOWN,NONE,NONE):
-            playlist_Prev( p_playlist );
+            vlc_playlist_Prev(playlist);
             break;
 
         case GESTURE(RIGHT,DOWN,NONE,NONE):
-            playlist_Next( p_playlist );
+            vlc_playlist_Next(playlist);
             break;
 
         case UP:
             msg_Dbg(p_intf, "Louder");
-            playlist_VolumeUp( p_playlist, 1, NULL );
+            vlc_player_aout_IncrementVolume(player, 1, NULL);
             break;
 
         case DOWN:
             msg_Dbg(p_intf, "Quieter");
-            playlist_VolumeDown( p_playlist, 1, NULL );
+            vlc_player_aout_DecrementVolume(player, 1, NULL);
             break;
 
         case GESTURE(UP,DOWN,NONE,NONE):
         case GESTURE(DOWN,UP,NONE,NONE):
             msg_Dbg( p_intf, "Mute sound" );
-            playlist_MuteToggle( p_playlist );
+            vlc_player_aout_ToggleMute(player);
             break;
 
         case GESTURE(UP,RIGHT,NONE,NONE):
@@ -301,10 +304,7 @@ static void ProcessGesture( intf_thread_t *p_intf )
 
         case GESTURE(UP,LEFT,NONE,NONE):
         {
-            bool val = var_ToggleBool( pl_Get( p_intf ), "fullscreen" );
-            vout_thread_t *vout;
-            vlc_vector_foreach(vout, &p_sys->vout_vector)
-                var_SetBool(vout, "fullscreen", val);
+            vlc_player_vout_ToggleFullscreen(player);
             break;
         }
 
