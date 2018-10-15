@@ -35,7 +35,9 @@
 #include <vlc_input.h>
 #include <vlc_vout.h>
 #include <vlc_plugin.h>
+#include <vlc_player.h>
 #include <vlc_playlist.h>
+#include <vlc_playlist_new.h>
 
 #include <unistd.h>
 #include <limits.h>
@@ -89,7 +91,8 @@ MarshalIdentity( intf_thread_t *p_intf, DBusMessageIter *container )
 static int
 MarshalCanSetFullscreen( intf_thread_t *p_intf, DBusMessageIter *container )
 {
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_intf));
     vout_thread_t **vouts;
     size_t count = vlc_player_GetVouts(player, &vouts);
     dbus_bool_t b_ret = count > 0;
@@ -109,7 +112,8 @@ MarshalFullscreen( intf_thread_t *p_intf, DBusMessageIter *container )
 {
     dbus_bool_t b_fullscreen;
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_intf));
     b_fullscreen = vlc_player_vout_IsFullscreen(player);
 
     if (!dbus_message_iter_append_basic( container,
@@ -127,7 +131,8 @@ DBUS_METHOD( FullscreenSet )
     if( VLC_SUCCESS != DemarshalSetPropertyValue( p_from, &b_fullscreen ) )
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_this));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_this));
     vlc_player_vout_SetFullscreen(player, b_fullscreen);
 
     REPLY_SEND;
