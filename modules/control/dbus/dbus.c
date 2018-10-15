@@ -57,8 +57,6 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_interface.h>
-#include <vlc_playlist.h>
-#include <vlc_input.h>
 #include <vlc_meta.h>
 #include <vlc_tick.h>
 #include <vlc_fs.h>
@@ -105,7 +103,6 @@ static void Close   ( vlc_object_t * );
 static void *Run    ( void * );
 
 static int TrackChange( intf_thread_t * );
-static int PlaylistCallback( vlc_object_t*, const char*, vlc_value_t, vlc_value_t, void* );
 
 static dbus_bool_t add_timeout(DBusTimeout *, void *);
 static void remove_timeout(DBusTimeout *, void *);
@@ -129,13 +126,37 @@ static void ProcessWatches ( intf_thread_t    *p_intf,
 
 static void DispatchDBusMessages( intf_thread_t *p_intf );
 
-static void player_on_state_changed(vlc_player_t *, enum vlc_player_state, void *);
+
+static void playlist_on_items_added(vlc_playlist_t *,
+                                    size_t, vlc_playlist_item_t *const [],
+                                    size_t, void *);
+static void playlist_on_items_removed(vlc_playlist_t *,
+                                      size_t, size_t, void *);
+static void playlist_on_playback_repeat_changed(vlc_playlist_t *,
+                                                enum vlc_playlist_playback_repeat,
+                                                void *);
+static void playlist_on_playback_order_changed(vlc_playlist_t *,
+                                               enum vlc_playlist_playback_order,
+                                               void *);
+static void playlist_on_current_index_changed(vlc_playlist_t *,
+                                              ssize_t, void *);
+
+static void player_on_state_changed(vlc_player_t *,
+                                    enum vlc_player_state, void *);
+static void player_on_error_changed(vlc_player_t *,
+                                    enum vlc_player_error, void *);
 static void player_on_rate_changed(vlc_player_t *, float, void *);
 static void player_on_capabilities_changed(vlc_player_t *, int, void *);
-static void player_on_position_changed(vlc_player_t *, vlc_tick_t, float, void *);
-static void player_on_item_meta_changed(vlc_player_t *, input_item_t *, void *);
-static void player_on_aout_volume_changed(vlc_player_t *, audio_output_t *, float, void *);
-static void player_on_aout_mute_changed(vlc_player_t *, audio_output_t *, bool, void *);
+static void player_on_position_changed(vlc_player_t *,
+                                       vlc_tick_t, float, void *);
+static void player_on_media_meta_changed(vlc_player_t *,
+                                         input_item_t *, void *);
+
+static void player_aout_on_volume_changed(vlc_player_t *, float, void *);
+static void player_aout_on_mute_changed(vlc_player_t *, bool, void *);
+
+static void player_vout_on_fullscreen_changed(vlc_player_t *,
+                                              vout_thread_t *, bool, void *);
 
 /*****************************************************************************
  * Module descriptor
@@ -164,7 +185,6 @@ static int Open( vlc_object_t *p_this )
     if( unlikely(!p_sys) )
         return VLC_ENOMEM;
 
-    playlist_t      *p_playlist;
     DBusConnection  *p_conn;
     p_sys->i_player_caps   = PLAYER_CAPS_NONE;
     p_sys->i_playing_state = PLAYBACK_STATE_INVALID;
@@ -239,33 +259,63 @@ static int Open( vlc_object_t *p_this )
     vlc_array_init( &p_sys->watches );
     vlc_mutex_init( &p_sys->lock );
 
-    p_playlist = pl_Get( p_intf );
-    p_sys->p_playlist = p_playlist;
+    vlc_playlist_t *playlist = vlc_intf_GetMainPlaylist(p_intf);
+    vlc_player_t *player = NULL;
+    if (!playlist)
+        goto error;
+    p_sys->playlist = playlist;
+    player = vlc_playlist_GetPlayer(playlist);
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(p_sys->p_playlist);
-    vlc_player_Lock(player);
-    static const struct vlc_player_cbs cbs = {
+    static struct vlc_playlist_callbacks const playlist_cbs =
+    {
+        .on_items_added = playlist_on_items_added,
+        .on_items_removed = playlist_on_items_removed,
+        .on_playback_repeat_changed = playlist_on_playback_repeat_changed,
+        .on_playback_order_changed = playlist_on_playback_order_changed,
+        .on_current_index_changed = playlist_on_current_index_changed,
+    };
+    p_sys->playlist_listener =
+        vlc_playlist_AddListener(playlist, &playlist_cbs, p_intf, false);
+    if (!p_sys->playlist_listener)
+        goto cbs_end;
+
+    static struct vlc_player_cbs const player_cbs =
+    {
         .on_state_changed = player_on_state_changed,
+        .on_error_changed = player_on_error_changed,
         .on_rate_changed = player_on_rate_changed,
         .on_capabilities_changed = player_on_capabilities_changed,
         .on_position_changed = player_on_position_changed,
-        .on_item_meta_changed = player_on_item_meta_changed,
-        .on_aout_volume_changed = player_on_aout_volume_changed,
-        .on_aout_mute_changed = player_on_aout_mute_changed,
+        .on_media_meta_changed = player_on_media_meta_changed,
     };
-    p_sys->player_listener = vlc_player_AddListener(player, &cbs, p_intf);
-    vlc_player_Unlock(player);
-
+    p_sys->player_listener =
+        vlc_player_AddListener(player, &player_cbs, p_intf);
     if (!p_sys->player_listener)
-        goto error;
+        goto cbs_end;
 
-    var_AddCallback( p_playlist, "input-current", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "playlist-item-append", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "playlist-item-deleted", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "random", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "repeat", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "loop", PlaylistCallback, p_intf );
-    var_AddCallback( p_playlist, "fullscreen", PlaylistCallback, p_intf );
+    static struct vlc_player_aout_cbs const player_aout_cbs =
+    {
+        .on_volume_changed = player_aout_on_volume_changed,
+        .on_mute_changed = player_aout_on_mute_changed
+    };
+    p_sys->player_aout_listener =
+        vlc_player_aout_AddListener(player, &player_aout_cbs, p_intf);
+    if (!p_sys->player_aout_listener)
+        goto cbs_end;
+
+    static struct vlc_player_vout_cbs const player_vout_cbs =
+    {
+        .on_fullscreen_changed = player_vout_on_fullscreen_changed,
+    };
+    p_sys->player_vout_listener =
+        vlc_player_vout_AddListener(player, &player_vout_cbs, p_intf);
+
+cbs_end:
+    vlc_playlist_Unlock(playlist);
+
+    if (!p_sys->playlist_listener || !p_sys->player_listener ||
+        !p_sys->player_aout_listener || !p_sys->player_vout_listener)
+        goto error;
 
     if( !dbus_connection_set_timeout_functions( p_conn,
                                                 add_timeout,
@@ -299,9 +349,15 @@ error:
     vlc_close( p_sys->p_pipe_fds[1] );
     vlc_close( p_sys->p_pipe_fds[0] );
 
-    vlc_player_Lock(player);
-    vlc_player_RemoveListener(player, p_sys->player_listener);
-    vlc_player_Unlock(player);
+    if (playlist)
+    {
+        vlc_playlist_Lock(playlist);
+        vlc_player_vout_RemoveListener(player, p_sys->player_vout_listener);
+        vlc_player_aout_RemoveListener(player, p_sys->player_aout_listener);
+        vlc_player_RemoveListener(player, p_sys->player_listener);
+        vlc_playlist_RemoveListener(playlist, p_sys->playlist_listener);
+        vlc_playlist_Unlock(playlist);
+    }
 
     free( p_sys );
     return VLC_ENOMEM;
@@ -315,23 +371,18 @@ static void Close   ( vlc_object_t *p_this )
 {
     intf_thread_t   *p_intf     = (intf_thread_t*) p_this;
     intf_sys_t      *p_sys      = p_intf->p_sys;
-    playlist_t      *p_playlist = p_sys->p_playlist;
+    vlc_playlist_t  *playlist = p_sys->playlist;
 
     vlc_cancel( p_sys->thread );
     vlc_join( p_sys->thread, NULL );
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(p_sys->p_playlist);
-    vlc_player_Lock(player);
+    vlc_player_t *player = vlc_playlist_GetPlayer(playlist);
+    vlc_playlist_Lock(playlist);
+    vlc_player_vout_RemoveListener(player, p_sys->player_vout_listener);
+    vlc_player_aout_RemoveListener(player, p_sys->player_aout_listener);
     vlc_player_RemoveListener(player, p_sys->player_listener);
-    vlc_player_Unlock(player);
-
-    var_DelCallback( p_playlist, "input-current", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "playlist-item-append", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "playlist-item-deleted", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "random", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "repeat", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "loop", PlaylistCallback, p_intf );
-    var_DelCallback( p_playlist, "fullscreen", PlaylistCallback, p_intf );
+    vlc_playlist_RemoveListener(playlist, p_sys->playlist_listener);
+    vlc_playlist_Unlock(playlist);
 
     /* The dbus connection is private, so we are responsible
      * for closing it */
@@ -574,10 +625,10 @@ static void ProcessEvents( intf_thread_t *p_intf,
         case SIGNAL_PLAYLIST_ITEM_APPEND:
         case SIGNAL_PLAYLIST_ITEM_DELETED:
         {
-            playlist_t *p_playlist = p_intf->p_sys->p_playlist;
-            PL_LOCK;
-            b_can_play = !playlist_IsEmpty( p_playlist );
-            PL_UNLOCK;
+            vlc_playlist_t *playlist = p_intf->p_sys->playlist;
+            vlc_playlist_Lock(playlist);
+            b_can_play = vlc_playlist_Count(playlist) > 0;
+            vlc_playlist_Unlock(playlist);
 
             if( b_can_play != p_intf->p_sys->b_can_play )
             {
@@ -611,7 +662,8 @@ static void ProcessEvents( intf_thread_t *p_intf,
             break;
         case SIGNAL_INPUT_METADATA:
         {
-            vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+            vlc_player_t *player =
+                vlc_playlist_GetPlayer(p_intf->p_sys->playlist);
             vlc_player_Lock(player);
             input_item_t *p_item = vlc_player_GetCurrentMedia(player);
             if( p_item )
@@ -826,6 +878,7 @@ static void *Run( void *data )
          * timeouts and watches to process but we can't keep the lock while
          * processing them, or else we risk a deadlock:
          *
+* TODO
          * The signal functions could lock mutex X while p_events is locked;
          * While some other function in vlc (playlist) might lock mutex X
          * and then set a variable which would call PlaylistCallback(), which itself
@@ -936,6 +989,52 @@ static bool add_event_signal( intf_thread_t *p_intf, const callback_info_t *p_in
 }
 
 static void
+playlist_on_items_added(vlc_playlist_t *playlist, size_t index,
+                        vlc_playlist_item_t *const items[], size_t count,
+                        void *data)
+{
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_PLAYLIST_ITEM_APPEND });
+    (void) playlist; (void) index; (void) items; (void) count;
+}
+
+static void
+playlist_on_items_removed(vlc_playlist_t *playlist,
+                          size_t index, size_t count, void *data)
+{
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_PLAYLIST_ITEM_DELETED });
+    (void) playlist; (void) index; (void) count;
+}
+
+static void
+playlist_on_playback_repeat_changed(vlc_playlist_t *playlist,
+                                    enum vlc_playlist_playback_repeat repeat,
+                                    void *data)
+{
+    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_REPEAT });
+    (void) playlist; (void) repeat;
+}
+
+static void
+playlist_on_playback_order_changed(vlc_playlist_t *playlist,
+                                   enum vlc_playlist_playback_order order,
+                                   void *data)
+{
+    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_RANDOM });
+    (void) playlist; (void) order;
+}
+
+static void
+playlist_on_current_index_changed(vlc_playlist_t *playlist,
+                                  ssize_t index, void *data)
+{
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_ITEM_CURRENT });
+    (void) playlist; (void) index;
+}
+
+static void
 player_on_state_changed(vlc_player_t *player, enum vlc_player_state state,
                         void *data)
 {
@@ -953,7 +1052,6 @@ player_on_state_changed(vlc_player_t *player, enum vlc_player_state state,
             playing_state = PLAYBACK_STATE_PAUSED;
             break;
         case VLC_PLAYER_STATE_STOPPED:
-        case VLC_PLAYER_STATE_ERROR:
         default:
             playing_state = PLAYBACK_STATE_STOPPED;
             break;
@@ -964,13 +1062,22 @@ player_on_state_changed(vlc_player_t *player, enum vlc_player_state state,
     if (playing_state != sys->i_playing_state)
     {
         sys->i_playing_state = playing_state;
-        added = add_event_locked(intf, &(callback_info_t) { .signal = SIGNAL_STATE });
+        added = add_event_locked(intf,
+                &(callback_info_t) { .signal = SIGNAL_STATE });
     }
     vlc_mutex_unlock(&sys->lock);
 
     if (added)
         wakeup_main_loop(intf);
     (void) player;
+}
+
+static void
+player_on_error_changed(vlc_player_t *player, enum vlc_player_error error,
+                        void *data)
+{
+    if (error == VLC_PLAYER_ERROR_GENERIC)
+        player_on_state_changed(player, VLC_PLAYER_STATE_STOPPED, data);
 }
 
 static void
@@ -987,8 +1094,10 @@ player_on_capabilities_changed(vlc_player_t *player, int new_caps, void *data)
     intf_sys_t *sys = intf->p_sys;
 
     vlc_mutex_lock(&sys->lock);
-    bool ok1 = add_event_locked(intf, &(callback_info_t) { .signal =  SIGNAL_CAN_SEEK });
-    bool ok2 = add_event_locked(intf, &(callback_info_t) { .signal =  SIGNAL_CAN_PAUSE });
+    bool ok1 = add_event_locked(intf,
+            &(callback_info_t) { .signal =  SIGNAL_CAN_SEEK });
+    bool ok2 = add_event_locked(intf,
+            &(callback_info_t) { .signal =  SIGNAL_CAN_PAUSE });
     vlc_mutex_unlock(&sys->lock);
     if (ok1 || ok2)
         wakeup_main_loop(intf);
@@ -1031,64 +1140,41 @@ player_on_position_changed(vlc_player_t *player, vlc_tick_t time, float pos,
 }
 
 static void
-player_on_item_meta_changed(vlc_player_t *player, input_item_t *item, void *data)
+player_on_media_meta_changed(vlc_player_t *player,
+                             input_item_t *item, void *data)
 {
-    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_INPUT_METADATA });
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_INPUT_METADATA });
     (void) player; (void) item;
 }
 
 static void
-player_on_aout_volume_changed(vlc_player_t *player, audio_output_t *aout,
-                              float volume, void *data)
+player_aout_on_volume_changed(vlc_player_t *player, float volume, void *data)
 {
-    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_VOLUME_CHANGE });
-    (void) player; (void) aout; (void) volume;
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_VOLUME_CHANGE });
+    (void) player; (void) volume;
 }
 
 static void
-player_on_aout_mute_changed(vlc_player_t *player, audio_output_t *aout,
-                            bool muted, void *data)
+player_aout_on_mute_changed(vlc_player_t *player, bool muted, void *data)
 {
-    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_VOLUME_MUTED });
-    (void) player; (void) aout; (void) muted;
+    add_event_signal(data,
+            &(callback_info_t){ .signal = SIGNAL_VOLUME_MUTED });
+    (void) player; (void) muted;
 }
 
-// Get all the callbacks
-static int PlaylistCallback( vlc_object_t *p_this, const char *psz_var,
-                             vlc_value_t oldval, vlc_value_t newval, void *p_data )
+static void
+player_vout_on_fullscreen_changed(vlc_player_t *player,
+                                  vout_thread_t *vout, bool enabled,
+                                  void *data)
 {
-    intf_thread_t *p_intf = p_data;
-    callback_info_t info = { .signal = SIGNAL_NONE };
-
-    // Wich event is it ?
-    if( !strcmp( "input-current", psz_var ) )
-        info.signal = SIGNAL_ITEM_CURRENT;
-    else if( !strcmp( "playlist-item-append", psz_var ) )
-        info.signal = SIGNAL_PLAYLIST_ITEM_APPEND;
-    else if( !strcmp( "playlist-item-deleted", psz_var ) )
-        info.signal = SIGNAL_PLAYLIST_ITEM_DELETED;
-    else if( !strcmp( "random", psz_var ) )
-        info.signal = SIGNAL_RANDOM;
-    else if( !strcmp( "fullscreen", psz_var ) )
-        info.signal = SIGNAL_FULLSCREEN;
-    else if( !strcmp( "repeat", psz_var ) )
-        info.signal = SIGNAL_REPEAT;
-    else if( !strcmp( "loop", psz_var ) )
-        info.signal = SIGNAL_LOOP;
-    else
-        vlc_assert_unreachable();
-
-    if( info.signal == SIGNAL_NONE )
-        return VLC_SUCCESS;
-
-    add_event_signal( p_intf, &info );
-
-    (void) p_this; (void) oldval; (void) newval;
-    return VLC_SUCCESS;
+    add_event_signal(data, &(callback_info_t){ .signal = SIGNAL_FULLSCREEN });
+    (void) player; (void) vout; (void) enabled;
 }
 
 /*****************************************************************************
- * TrackChange: callback on playlist "input-current"
+ * TrackChange: callback on playlist on_current_item_changed
  *****************************************************************************/
 static int TrackChange( intf_thread_t *p_intf )
 {
@@ -1101,7 +1187,8 @@ static int TrackChange( intf_thread_t *p_intf )
 
     p_sys->b_meta_read = false;
 
-    vlc_player_t *player = vlc_playlist_GetPlayer(pl_Get(p_intf));
+    vlc_player_t *player = vlc_playlist_GetPlayer(
+            vlc_intf_GetMainPlaylist(p_intf));
     vlc_player_Lock(player);
     input_item_t *item = vlc_player_GetCurrentMedia(player);
 
@@ -1198,9 +1285,9 @@ int DemarshalSetPropertyValue( DBusMessage *p_msg, void *p_arg )
         free( psz ); \
     }
 
-int GetInputMeta( playlist_item_t *item, DBusMessageIter *args )
+int GetInputMeta(vlc_playlist_t *playlist, vlc_playlist_item_t *item, DBusMessageIter *args)
 {
-    input_item_t *p_input = item->p_input;
+    input_item_t *p_input = vlc_playlist_item_GetMedia(item);
     DBusMessageIter dict, dict_entry, variant, list;
     /** The duration of the track can be expressed in second, milli-seconds and
         µ-seconds */
@@ -1209,7 +1296,8 @@ int GetInputMeta( playlist_item_t *item, DBusMessageIter *args )
     dbus_int64_t i_length = i_mtime / 1000;
     char *psz_trackid;
 
-    if( -1 == asprintf( &psz_trackid, MPRIS_TRACKID_FORMAT, item->i_id ) )
+    if (asprintf(&psz_trackid, MPRIS_TRACKID_FORMAT,
+                 vlc_playlist_IndexOf(playlist, item)) == -1)
         return VLC_ENOMEM;
 
     const char* ppsz_meta_items[] =
