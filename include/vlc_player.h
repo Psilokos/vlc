@@ -2313,6 +2313,13 @@ vlc_player_aout_IsMuted(vlc_player_t *player);
 VLC_API int
 vlc_player_aout_Mute(vlc_player_t *player, bool mute);
 
+static inline int
+vlc_player_aout_ToggleMute(vlc_player_t *player)
+{
+    return vlc_player_aout_Mute(player,
+                                !vlc_player_aout_IsMuted(player));
+}
+
 /**
  * Enable or disable an audio filter
  *
