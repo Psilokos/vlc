@@ -361,7 +361,7 @@ vlc_playlist_Unlock(vlc_playlist_t *);
  * registers to the playlist, it may already contain items. Calling callbacks
  * is a convenient way to initialize the client automatically.
  *
- * \param playlist             the playlist
+ * \param playlist             the playlist, locked
  * \param cbs                  the callbacks (must be valid until the listener
  *                             is removed)
  * \param userdata             userdata provided as a parameter in callbacks
@@ -377,7 +377,7 @@ vlc_playlist_AddListener(vlc_playlist_t *playlist,
 /**
  * Remove a player listener.
  *
- * \param playlist the playlist
+ * \param playlist the playlist, locked
  * \param id       the listener identifier returned by
  *                 vlc_playlist_AddListener()
  */
