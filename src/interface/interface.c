@@ -187,14 +187,18 @@ int intf_InsertItem(libvlc_int_t *libvlc, const char *mrl, unsigned optc,
 
 void libvlc_InternalPlay(libvlc_int_t *libvlc)
 {
-    playlist_t *pl;
+    vlc_playlist_t *pl;
 
     vlc_mutex_lock(&lock);
-    pl = libvlc_priv(libvlc)->playlist;
+    pl = libvlc_priv(libvlc)->main_playlist;
     vlc_mutex_unlock(&lock);
 
-    if (pl != NULL && var_GetBool(pl, "playlist-autostart"))
-        playlist_Control(pl, PLAYLIST_PLAY, false);
+    if (var_GetBool(libvlc, "playlist-autostart"))
+    {
+        vlc_playlist_Lock(pl);
+        vlc_playlist_Start(pl);
+        vlc_playlist_Unlock(pl);
+    }
 }
 
 /**
