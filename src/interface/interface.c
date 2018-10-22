@@ -68,10 +68,10 @@ static vlc_mutex_t lock = VLC_STATIC_MUTEX;
  * @param chain configuration chain string
  * @return VLC_SUCCESS or an error code
  */
-int intf_Create( playlist_t *playlist, const char *chain )
+int intf_Create( libvlc_int_t *libvlc, const char *chain )
 {
     /* Allocate structure */
-    intf_thread_t *p_intf = vlc_custom_create( playlist, sizeof( *p_intf ),
+    intf_thread_t *p_intf = vlc_custom_create( libvlc, sizeof( *p_intf ),
                                                "interface" );
     if( unlikely(p_intf == NULL) )
         return VLC_ENOMEM;
@@ -95,7 +95,8 @@ int intf_Create( playlist_t *playlist, const char *chain )
     var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, val,
                 _("Mouse Gestures") );
 
-    var_AddCallback( p_intf, "intf-add", AddIntfCallback, playlist );
+    var_AddCallback(p_intf, "intf-add", AddIntfCallback,
+                    vlc_intf_GetMainPlaylist(p_intf));
 
     /* Choose the best module */
     char *module;
@@ -110,6 +111,11 @@ int intf_Create( playlist_t *playlist, const char *chain )
         goto error;
     }
 
+    // TODO HERE libvlc priv has interfaces list
+    // src/misc/variables.h
+    // src/libvlc.c
+    // src/libvlc.h
+    // src/misc/object.c ??
     vlc_mutex_lock( &lock );
     p_intf->p_next = pl_priv( playlist )->interface;
     pl_priv( playlist )->interface = p_intf;
