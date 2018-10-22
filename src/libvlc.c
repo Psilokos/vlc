@@ -79,6 +79,9 @@
  *****************************************************************************/
 static void GetFilenames  ( libvlc_int_t *, unsigned, const char *const [] );
 
+static int VideoSplitterCallback(vlc_object_t *, char const *,
+                                 vlc_value_t, vlc_value_t, void *);
+
 /**
  * Allocate a blank libvlc instance, also setting the exit handler.
  * Vlc's threading system must have been initialized first
@@ -132,8 +135,11 @@ PlaylistConfigureFromVariables(vlc_playlist_t *playlist, vlc_object_t *obj)
         media_stopped_action = VLC_PLAYER_MEDIA_STOPPED_CONTINUE;
 
     bool start_paused = var_InheritBool(obj, "start-paused");
+    float rate = var_InheritFloat(obj, "rate");
+    bool playlist_cork = var_InheritBool(obj, "playlist-cork");
 
     vlc_playlist_Lock(playlist);
+
     vlc_playlist_SetPlaybackOrder(playlist, order);
     vlc_playlist_SetPlaybackRepeat(playlist, repeat);
 
@@ -143,6 +149,8 @@ PlaylistConfigureFromVariables(vlc_playlist_t *playlist, vlc_object_t *obj)
      * implementation detail */
     vlc_player_SetMediaStoppedAction(player, media_stopped_action);
     vlc_player_SetStartPaused(player, start_paused);
+    vlc_player_ChangeRate(player, rate);
+    vlc_player_EnablePauseOnCork(player, playlist_cork);
 
     vlc_playlist_Unlock(playlist);
 }
@@ -327,6 +335,13 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
     if (unlikely(!priv->main_playlist))
         goto error;
 
+    /* Variables to control playback */
+    var_Create(p_libvlc, "playlist-autostart", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "random", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "repeat", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "loop", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "rate", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT);
+
     PlaylistConfigureFromVariables(priv->main_playlist, VLC_OBJECT(p_libvlc));
 
     /*
@@ -401,6 +416,47 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
         intf_InsertItem( p_libvlc, psz_val, 0, NULL, 0 );
         free( psz_val );
     }
+
+    /* vout variables */
+    var_Create(p_libvlc, "video-splitter", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+    var_AddCallback( p_libvlc, "video-splitter", VideoSplitterCallback, NULL);
+
+    var_Create(p_libvlc, "video-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "sub-source", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "sub-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+
+    /* sout variables */
+    var_Create(p_libvlc, "sout", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "demux-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+
+    /* */
+    var_Create(p_libvlc, "metadata-network-access", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+
+    /* Variables to preserve video output parameters */
+    var_Create(p_libvlc, "fullscreen", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "video-on-top", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+    var_Create(p_libvlc, "video-wallpaper", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
+
+    /* Audio output parameters */
+    var_Create(p_libvlc, "audio-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT);
+
+    /* Subtitles parameters */
+    var_Create(p_libvlc, "sub-text-scale",
+                VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
+
+    /* Callbacks between interfaces */
+
+    /* Create a variable for showing the right click menu */
+    var_Create(p_libvlc, "intf-popupmenu", VLC_VAR_BOOL);
+
+    /* Create a variable for showing the fullscreen interface */
+    var_Create(p_libvlc, "intf-toggle-fscontrol", VLC_VAR_VOID);
+
+    /* Create a variable for the Boss Key */
+    var_Create(p_libvlc, "intf-boss", VLC_VAR_VOID);
+
+    /* Create a variable for showing the main interface */
+    var_Create(p_libvlc, "intf-show", VLC_VAR_VOID);
 
     return VLC_SUCCESS;
 
@@ -604,4 +660,22 @@ void libvlc_MetadataCancel(libvlc_int_t *libvlc, void *id)
         return;
 
     input_preparser_Cancel(priv->parser, id);
+}
+
+/*
+ * LibVLC callbacks
+ */
+
+static int VideoSplitterCallback( vlc_object_t *p_this, char const *psz_cmd,
+                                  vlc_value_t oldval, vlc_value_t newval, void *p_data )
+{
+    VLC_UNUSED(psz_cmd); VLC_UNUSED(oldval); VLC_UNUSED(p_data); VLC_UNUSED(newval);
+
+    vlc_playlist_t *playlist = libvlc_priv((libvlc_int_t *)p_this)->main_playlist;
+    vlc_player_t *player = vlc_playlist_GetPlayer(playlist);
+    vlc_player_Lock(player);
+    vlc_player_RestartTrackCategory(player, VIDEO_ES);
+    vlc_player_Unlock(player);
+
+    return VLC_SUCCESS;
 }
