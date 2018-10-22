@@ -26,6 +26,8 @@
 #ifndef VLC_INTF_H_
 #define VLC_INTF_H_
 
+# include <vlc_list.h>
+
 # ifdef __cplusplus
 extern "C" {
 # endif
@@ -48,8 +50,7 @@ typedef struct intf_sys_t intf_sys_t;
 typedef struct intf_thread_t
 {
     struct vlc_common_members obj;
-
-    struct intf_thread_t *p_next; /** LibVLC interfaces book keeping */
+    struct vlc_list node;
 
     /* Specific interfaces */
     intf_sys_t *        p_sys;                          /** system interface */
@@ -88,7 +89,7 @@ struct intf_dialog_args_t
     struct interaction_dialog_t *p_dialog;
 };
 
-VLC_API int intf_Create( playlist_t *, const char * );
+VLC_API int intf_Create(libvlc_int_t *, char const *);
 
 VLC_API void libvlc_Quit( libvlc_int_t * );
 
