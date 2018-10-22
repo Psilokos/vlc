@@ -1275,9 +1275,12 @@ vlc_player_aout_SetVolume(vlc_player_t *player, float volume);
 VLC_API int
 vlc_player_aout_IncrementVolume(vlc_player_t *player, float volume,
                                 float *result);
-VLC_API int
+static inline int
 vlc_player_aout_DecrementVolume(vlc_player_t *player, float volume,
-                                float *result);
+                                float *result)
+{
+    return vlc_player_aout_IncrementVolume(player, -volume, result);
+}
 
 VLC_API int
 vlc_player_aout_IsMuted(vlc_player_t *player);
