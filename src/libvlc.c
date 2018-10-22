@@ -402,6 +402,70 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
         free( psz_val );
     }
 
+    /* TODO: find a better solution than moving these variables from old playlist to libvlc obj */
+
+    /* These variables control updates */
+    var_Create( p_libvlc, "item-change", VLC_VAR_ADDRESS );
+
+    /* Variables to control playback */
+    var_Create( p_libvlc, "playlist-autostart", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "random", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_AddCallback( p_libvlc, "random", RandomCallback, NULL );
+    var_Create( p_libvlc, "repeat", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "loop", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "corks", VLC_VAR_INTEGER );
+    var_AddCallback( p_libvlc, "corks", CorksCallback, NULL );
+
+    var_Create( p_libvlc, "rate", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT );
+    var_AddCallback( p_libvlc, "rate", RateCallback, NULL );
+    var_Create( p_libvlc, "rate-slower", VLC_VAR_VOID );
+    var_AddCallback( p_libvlc, "rate-slower", RateOffsetCallback, NULL );
+    var_Create( p_libvlc, "rate-faster", VLC_VAR_VOID );
+    var_AddCallback( p_libvlc, "rate-faster", RateOffsetCallback, NULL );
+
+    var_Create( p_libvlc, "video-splitter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+    var_AddCallback( p_libvlc, "video-splitter", VideoSplitterCallback, NULL );
+
+    var_Create( p_libvlc, "video-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "sub-source", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "sub-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+
+    /* sout variables */
+    var_Create( p_libvlc, "sout", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "demux-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+
+    /* */
+    var_Create( p_libvlc, "metadata-network-access", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+
+    /* Variables to preserve video output parameters */
+    var_Create( p_libvlc, "fullscreen", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "video-on-top", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "video-wallpaper", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
+
+    /* Audio output parameters */
+    var_Create( p_libvlc, "audio-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
+    var_Create( p_libvlc, "audio-device", VLC_VAR_STRING );
+    var_Create( p_libvlc, "mute", VLC_VAR_BOOL );
+    var_Create( p_libvlc, "volume", VLC_VAR_FLOAT );
+    var_SetFloat( p_libvlc, "volume", -1.f );
+
+    var_Create( p_libvlc, "sub-text-scale",
+                VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
+
+    /* Callbacks between interfaces */
+
+    /* Create a variable for showing the right click menu */
+    var_Create( p_libvlc, "intf-popupmenu", VLC_VAR_BOOL );
+
+    /* Create a variable for showing the fullscreen interface */
+    var_Create( p_libvlc, "intf-toggle-fscontrol", VLC_VAR_VOID );
+
+    /* Create a variable for the Boss Key */
+    var_Create( p_libvlc, "intf-boss", VLC_VAR_VOID );
+
+    /* Create a variable for showing the main interface */
+    var_Create( p_libvlc, "intf-show", VLC_VAR_VOID );
+
     return VLC_SUCCESS;
 
 error:

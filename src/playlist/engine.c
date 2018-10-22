@@ -38,11 +38,6 @@
 #include "playlist_internal.h"
 #include "input/resource.h"
 
-/*****************************************************************************
- * Local prototypes
- *****************************************************************************/
-static void VariablesInit( playlist_t *p_playlist );
-
 static int RandomCallback( vlc_object_t *p_this, char const *psz_cmd,
                            vlc_value_t oldval, vlc_value_t newval, void *a )
 {
@@ -211,7 +206,6 @@ playlist_t *playlist_Create( vlc_object_t *p_parent )
 
     vlc_list_init(&p->sds);
 
-    VariablesInit( p_playlist );
     vlc_mutex_init( &p->lock );
     vlc_cond_init( &p->signal );
     p->killed = false;
@@ -403,77 +397,6 @@ void set_current_status_node( playlist_t * p_playlist,
     PL_ASSERT_LOCKED;
 
     pl_priv(p_playlist)->status.p_node = p_node;
-}
-
-static void VariablesInit( playlist_t *p_playlist )
-{
-    /* These variables control updates */
-    var_Create( p_playlist, "item-change", VLC_VAR_ADDRESS );
-    var_Create( p_playlist, "leaf-to-parent", VLC_VAR_INTEGER );
-
-    var_Create( p_playlist, "playlist-item-append", VLC_VAR_ADDRESS );
-    var_Create( p_playlist, "playlist-item-deleted", VLC_VAR_ADDRESS );
-
-    var_Create( p_playlist, "input-current", VLC_VAR_ADDRESS );
-
-    /* Variables to control playback */
-    var_Create( p_playlist, "playlist-autostart", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "random", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_AddCallback( p_playlist, "random", RandomCallback, NULL );
-    var_Create( p_playlist, "repeat", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "loop", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "corks", VLC_VAR_INTEGER );
-    var_AddCallback( p_playlist, "corks", CorksCallback, NULL );
-
-    var_Create( p_playlist, "rate", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT );
-    var_AddCallback( p_playlist, "rate", RateCallback, NULL );
-    var_Create( p_playlist, "rate-slower", VLC_VAR_VOID );
-    var_AddCallback( p_playlist, "rate-slower", RateOffsetCallback, NULL );
-    var_Create( p_playlist, "rate-faster", VLC_VAR_VOID );
-    var_AddCallback( p_playlist, "rate-faster", RateOffsetCallback, NULL );
-
-    var_Create( p_playlist, "video-splitter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-    var_AddCallback( p_playlist, "video-splitter", VideoSplitterCallback, NULL );
-
-    var_Create( p_playlist, "video-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "sub-source", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "sub-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-
-    /* sout variables */
-    var_Create( p_playlist, "sout", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "demux-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-
-    /* */
-    var_Create( p_playlist, "metadata-network-access", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-
-    /* Variables to preserve video output parameters */
-    var_Create( p_playlist, "fullscreen", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "video-on-top", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "video-wallpaper", VLC_VAR_BOOL | VLC_VAR_DOINHERIT );
-
-    /* Audio output parameters */
-    var_Create( p_playlist, "audio-filter", VLC_VAR_STRING | VLC_VAR_DOINHERIT );
-    var_Create( p_playlist, "audio-device", VLC_VAR_STRING );
-    var_Create( p_playlist, "mute", VLC_VAR_BOOL );
-    var_Create( p_playlist, "volume", VLC_VAR_FLOAT );
-    var_SetFloat( p_playlist, "volume", -1.f );
-
-    var_Create( p_playlist, "sub-text-scale",
-               VLC_VAR_INTEGER | VLC_VAR_DOINHERIT | VLC_VAR_ISCOMMAND );
-
-    /* Callbacks between interfaces */
-
-    /* Create a variable for showing the right click menu */
-    var_Create( p_playlist, "intf-popupmenu", VLC_VAR_BOOL );
-
-    /* Create a variable for showing the fullscreen interface */
-    var_Create( p_playlist, "intf-toggle-fscontrol", VLC_VAR_VOID );
-
-    /* Create a variable for the Boss Key */
-    var_Create( p_playlist, "intf-boss", VLC_VAR_VOID );
-
-    /* Create a variable for showing the main interface */
-    var_Create( p_playlist, "intf-show", VLC_VAR_VOID );
 }
 
 playlist_item_t * playlist_CurrentPlayingItem( playlist_t * p_playlist )
