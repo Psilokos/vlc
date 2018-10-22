@@ -991,7 +991,8 @@ static void blurayClose(vlc_object_t *object)
 
     if (p_sys->p_parser)
         vlc_demux_chained_Delete(p_sys->p_parser);
-    es_out_Delete(p_sys->p_out);
+    if (p_sys->p_out)
+        es_out_Delete(p_sys->p_out);
 
     /* Titles */
     for (unsigned int i = 0; i < p_sys->i_title; i++)
