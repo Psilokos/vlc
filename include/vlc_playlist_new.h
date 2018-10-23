@@ -371,7 +371,7 @@ vlc_playlist_Unlock(vlc_playlist_t *);
  * registers to the playlist, it may already contain items. Calling callbacks
  * is a convenient way to initialize the client automatically.
  *
- * \param playlist             the playlist
+ * \param playlist             the playlist, locked
  * \param cbs                  the callbacks (must be valid until the listener
  *                             is removed)
  * \param userdata             userdata provided as a parameter in callbacks
@@ -387,7 +387,7 @@ vlc_playlist_AddListener(vlc_playlist_t *playlist,
 /**
  * Remove a player listener.
  *
- * \param playlist the playlist
+ * \param playlist the playlist, locked
  * \param id       the listener identifier returned by
  *                 vlc_playlist_AddListener()
  */
@@ -826,6 +826,22 @@ vlc_playlist_Pause(vlc_playlist_t *playlist);
  */
 VLC_API void
 vlc_playlist_Resume(vlc_playlist_t *playlist);
+
+/**
+ * Goto the given index and plays the corresponding item
+ *
+ * \param playlist the playlist, locked
+ * \param index the index to play at
+ * \return VLC_SUCCESS on success, another value on error
+ */
+static inline int
+vlc_playlist_Play(vlc_playlist_t *playlist, size_t index)
+{
+    return
+        vlc_playlist_GoTo(playlist, index) == VLC_SUCCESS &&
+        vlc_playlist_Start(playlist) == VLC_SUCCESS
+        ? VLC_SUCCESS : VLC_EGENERIC;
+}
 
 /**
  * Preparse a media, and expand it in the playlist on subitems added.
