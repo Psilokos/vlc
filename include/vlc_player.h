@@ -1284,7 +1284,7 @@ vlc_player_GetRate(vlc_player_t *player);
  * @note The rate is saved across several medias
  *
  * @param player locked player instance
- * @param rate new player (< 1.f is slower, > 1.f is faster)
+ * @param rate new rate (< 1.f is slower, > 1.f is faster)
  */
 VLC_API void
 vlc_player_ChangeRate(vlc_player_t *player, float rate);
