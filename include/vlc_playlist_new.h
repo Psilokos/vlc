@@ -828,6 +828,24 @@ VLC_API void
 vlc_playlist_Resume(vlc_playlist_t *playlist);
 
 /**
+ * Goto the given index and plays the corresponding item
+ *
+ * \param playlist the playlist, locked
+ * \param index the index to play at
+ * \return VLC_SUCCESS on success, another value on error
+ */
+static inline int
+vlc_playlist_PlayAt(vlc_playlist_t *playlist, size_t index)
+{
+    int ret = vlc_playlist_GoTo(playlist, index);
+    if (ret != VLC_SUCCESS)
+        goto end;
+    ret = vlc_playlist_Start(playlist);
+end:
+    return ret;
+}
+
+/**
  * Preparse a media, and expand it in the playlist on subitems added.
  *
  * \param playlist the playlist (not necessarily locked)
