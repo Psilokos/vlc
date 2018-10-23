@@ -92,7 +92,7 @@ static void aout_MuteNotify (audio_output_t *aout, bool mute)
 
 static void aout_PolicyNotify (audio_output_t *aout, bool cork)
 {
-    (cork ? var_IncInteger : var_DecInteger) (aout->obj.parent, "corks");
+    var_SetBool (aout, "cork", cork);
 }
 
 static void aout_DeviceNotify (audio_output_t *aout, const char *id)
@@ -246,6 +246,7 @@ audio_output_t *aout_New (vlc_object_t *parent)
     var_AddCallback (aout, "volume", var_Copy, parent);
     var_Create (aout, "mute", VLC_VAR_BOOL | VLC_VAR_DOINHERIT);
     var_AddCallback (aout, "mute", var_Copy, parent);
+    var_Create(aout, "cork", VLC_VAR_BOOL);
     var_Create (aout, "device", VLC_VAR_STRING);
     var_AddCallback (aout, "device", var_CopyDevice, parent);
     /* TODO: 3.0 HACK: only way to signal DTS_HD to aout modules. */
