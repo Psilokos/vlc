@@ -791,6 +791,12 @@ struct vlc_player_cbs
      */
     void (*on_vout_list_changed)(vlc_player_t *player,
         enum vlc_player_list_action action, vout_thread_t *vout, void *data);
+
+    /**
+      * Called when an audio cork is added or removed
+      */
+    void (*on_audio_cork_changed)(vlc_player_t *player,
+        size_t cork_count, void *data);
 };
 
 /**
@@ -1288,7 +1294,7 @@ vlc_player_GetRate(vlc_player_t *player);
  * @note The rate is saved across several medias
  *
  * @param player locked player instance
- * @param rate new player (< 1.f is slower, > 1.f is faster)
+ * @param rate new rate (< 1.f is slower, > 1.f is faster)
  */
 VLC_API void
 vlc_player_ChangeRate(vlc_player_t *player, float rate);
@@ -1639,6 +1645,23 @@ vlc_player_UnselectTrackCategory(vlc_player_t *player,
  */
 VLC_API void
 vlc_player_RestartTrack(vlc_player_t *player, vlc_es_id_t *es_id);
+
+/**
+  * Helper to restart all tracks from an ES category
+  */
+static inline void
+vlc_player_RestartTrackCategory(vlc_player_t *player,
+                                enum es_format_category_e cat)
+{
+    size_t count = vlc_player_GetTrackCount(player, cat);
+    for (size_t i = 0; i < count; ++i)
+    {
+        const struct vlc_player_track *track =
+            vlc_player_GetTrackAt(player, cat, i);
+        assert(track);
+        vlc_player_RestartTrack(player, track->es_id);
+    }
+}
 
 /**
  * Select the default track for an ES category.
@@ -2044,6 +2067,20 @@ VLC_API void
 vlc_player_Navigate(vlc_player_t *player, enum vlc_player_nav nav);
 
 /**
+  * Update the viewpoint.
+  *
+  * @param player locked player instance
+  * @param viewpoint the viewpoint value
+  * @param whence if absolute replaces the current viewpoint, else applies it
+  * as a delta relative to the current one
+  * @return VLC_SUCCESS or a VLC error code
+  */
+VLC_API int
+vlc_player_UpdateViewpoint(vlc_player_t *player,
+                           vlc_viewpoint const *viewpoint,
+                           enum vlc_player_whence whence);
+
+/**
  * Check if the playing is recording
  *
  * @see vlc_player_cbs.on_recording_changed
@@ -2144,6 +2181,12 @@ vlc_player_GetSignal(vlc_player_t *player, float *quality, float *strength);
  */
 VLC_API const struct input_stats_t *
 vlc_player_GetStatistics(vlc_player_t *player);
+
+/**
+  *
+  */
+VLC_API void
+vlc_player_EnablePauseOnCork(vlc_player_t *player, bool enable);
 
 /**
  * Get the list of video output

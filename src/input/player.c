@@ -150,6 +150,9 @@ struct vlc_player_t
     const struct vlc_player_media_provider *media_provider;
     void *media_provider_data;
 
+    bool pause_on_cork;
+    size_t corks_count;
+
     struct vlc_list listeners;
     struct vlc_list aout_listeners;
     struct vlc_list vout_listeners;
@@ -2328,6 +2331,19 @@ vlc_player_Navigate(vlc_player_t *player, enum vlc_player_nav nav)
     input_ControlPushHelper(input->thread, control, NULL);
 }
 
+int
+vlc_player_UpdateViewpoint(vlc_player_t *player,
+                           vlc_viewpoint const *viewpoint,
+                           enum vlc_player_whence whence)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return VLC_ENOOBJ;
+
+    return input_UpdateViewpoint(input->thread, viewpoint,
+                                 whence == VLC_PLAYER_WHENCE_ABSOLUTE);
+}
+
 bool
 vlc_player_IsRecording(vlc_player_t *player)
 {
@@ -2413,6 +2429,38 @@ vlc_player_GetStatistics(vlc_player_t *player)
     return input ? &input->stats : NULL;
 }
 
+void
+vlc_player_EnablePauseOnCork(vlc_player_t *player, bool enable)
+{
+    vlc_player_assert_locked(player);
+    player->pause_on_cork = enable;
+}
+
+static void
+vlc_player_Cork(vlc_player_t *player, bool cork)
+{
+    vlc_player_assert_locked(player);
+
+    if (cork)
+        ++player->corks_count;
+    else
+    {
+        if (!player->corks_count)
+            return;
+        --player->corks_count;
+    }
+
+    if (player->pause_on_cork)
+    {
+        player->corks_count > 0
+            ? vlc_player_Pause(player)
+            : vlc_player_Resume(player);
+    }
+    else
+        vlc_player_SendEvent(player,
+                on_audio_cork_changed, player->corks_count);
+}
+
 vout_thread_t **
 vlc_player_GetVouts(vlc_player_t *player, size_t *count)
 {
@@ -2473,9 +2521,11 @@ vlc_player_AoutCallback(vlc_object_t *this, const char *var,
     }
     else if (strcmp(var, "mute") == 0)
     {
-        if (oldval.b_bool != newval.b_bool )
+        if (oldval.b_bool != newval.b_bool)
             vlc_player_aout_SendEvent(player, on_mute_changed, newval.b_bool);
     }
+    else if (strcmp(var, "cork") == 0)
+        vlc_player_Cork(player, newval.b_bool);
     else
         vlc_assert_unreachable();
 
@@ -2708,6 +2758,7 @@ vlc_player_Delete(vlc_player_t *player)
     {
         var_DelCallback(aout, "volume", vlc_player_AoutCallback, player);
         var_DelCallback(aout, "mute", vlc_player_AoutCallback, player);
+        var_DelCallback(aout, "cork", vlc_player_AoutCallback, player);
         vlc_object_release(aout);
     }
     input_resource_Release(player->resource);
@@ -2737,6 +2788,8 @@ vlc_player_New(vlc_object_t *parent,
     vlc_list_init(&player->destructor.joinable_inputs);
     player->media_stopped_action = VLC_PLAYER_MEDIA_STOPPED_CONTINUE;
     player->start_paused = false;
+    player->pause_on_cork = false;
+    player->corks_count = 0;
     player->renderer = NULL;
     player->media_provider = media_provider;
     player->media_provider_data = media_provider_data;
@@ -2782,6 +2835,7 @@ vlc_player_New(vlc_object_t *parent,
     {
         var_AddCallback(aout, "volume", vlc_player_AoutCallback, player);
         var_AddCallback(aout, "mute", vlc_player_AoutCallback, player);
+        var_AddCallback(aout, "cork", vlc_player_AoutCallback, player);
         input_resource_PutAout(player->resource, aout);
     }
 
@@ -2802,6 +2856,7 @@ error:
     {
         var_DelCallback(aout, "volume", vlc_player_AoutCallback, player);
         var_DelCallback(aout, "mute", vlc_player_AoutCallback, player);
+        var_DelCallback(aout, "cork", vlc_player_AoutCallback, player);
     }
     if (player->resource)
         input_resource_Release(player->resource);
@@ -2809,5 +2864,3 @@ error:
     vlc_object_release(player);
     return NULL;
 }
-
-
