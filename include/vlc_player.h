@@ -787,6 +787,12 @@ struct vlc_player_cbs
      */
     void (*on_vout_list_changed)(vlc_player_t *player,
         enum vlc_player_list_action action, vout_thread_t *vout, void *data);
+
+    /**
+      * Called when an audio cork is added or removed
+      */
+    void (*on_audio_cork_changed)(vlc_player_t *player,
+        size_t cork_count, void *data);
 };
 
 /**
@@ -1637,6 +1643,23 @@ VLC_API void
 vlc_player_RestartTrack(vlc_player_t *player, vlc_es_id_t *es_id);
 
 /**
+  * Helper to restart all tracks from an ES category
+  */
+static inline void
+vlc_player_RestartTrackCategory(vlc_player_t *player,
+                                enum es_format_category_e cat)
+{
+    size_t count = vlc_player_GetTrackCount(player, cat);
+    for (size_t i = 0; i < count; ++i)
+    {
+        const struct vlc_player_track *track =
+            vlc_player_GetTrackAt(player, cat, i);
+        assert(track);
+        vlc_player_RestartTrack(player, track->es_id);
+    }
+}
+
+/**
  * Select the default track for an ES category.
  *
  * Tracks for this category will be automatically chosen according to the
@@ -2139,6 +2162,12 @@ vlc_player_GetSignal(vlc_player_t *player, float *quality, float *strength);
  */
 VLC_API const struct input_stats_t *
 vlc_player_GetStatistics(vlc_player_t *player);
+
+/**
+  *
+  */
+VLC_API void
+vlc_player_EnablePauseOnCork(vlc_player_t *player, bool enable);
 
 /**
  * Get the list of video output
