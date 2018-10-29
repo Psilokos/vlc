@@ -1118,6 +1118,35 @@ vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *id)
     return vlc_player_track_vector_FindById(vec, id, NULL);
 }
 
+const struct vlc_player_track *
+vlc_player_GetSelectedTrack(vlc_player_t *player,
+                            enum es_format_category_e cat)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return NULL;
+    vlc_player_track_vector *vec = vlc_player_input_GetTrackVector(input, cat);
+    ssize_t index = vlc_player_GetSelectedTrackIdx(player, cat);
+    if (index == -1)
+        return NULL;
+    return vec->data[index];
+}
+
+ssize_t
+vlc_player_GetSelectedTrackIdx(vlc_player_t *player,
+                               enum es_format_category_e cat)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return -1;
+    vlc_player_track_vector *vec = vlc_player_input_GetTrackVector(input, cat);
+    struct vlc_player_track *track;
+    vlc_vector_foreach(track, vec)
+        if (track->selected)
+            return vlc_vector_idx_track;
+    return -1;
+}
+
 void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *id)
 {
@@ -1125,6 +1154,17 @@ vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *id)
 
     if (input)
         input_ControlPushEsHelper(input->thread, INPUT_CONTROL_SET_ES, id);
+}
+
+void
+vlc_player_SelectTrackAt(vlc_player_t *player,
+                         enum es_format_category_e cat, size_t index)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+    vlc_player_track_vector *vec = vlc_player_input_GetTrackVector(input, cat);
+    vlc_player_SelectTrack(player, vec->data[index]->es_id);
 }
 
 void
@@ -2333,7 +2373,7 @@ vlc_player_Navigate(vlc_player_t *player, enum vlc_player_nav nav)
 
 int
 vlc_player_UpdateViewpoint(vlc_player_t *player,
-                           vlc_viewpoint const *viewpoint,
+                           vlc_viewpoint_t const *viewpoint,
                            enum vlc_player_whence whence)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
@@ -2603,6 +2643,47 @@ vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add)
     return 0;
 }
 
+int
+vlc_player_aout_NextDevice(vlc_player_t *player)
+{
+    audio_output_t *aout = vlc_player_GetAout(player);
+    if (!aout)
+        return -1;
+
+    char **ids, **names;
+    int n = aout_DeviceList(aout, &ids, &names);
+    if (n == -1)
+    {
+        vlc_object_release(aout);
+        return -1;
+    }
+
+    char *device = aout_DeviceGet(aout);
+    int index;
+    for (index = 0; index < n; ++index)
+        if (!strcmp(names[index], device))
+        {
+            index = (index + 1) % n;
+            break;
+        }
+    free(device);
+
+    int ret = aout_DeviceSet(aout, ids[index]);
+    if (!ret)
+        vlc_player_vout_OSDMessage(player,
+                                   _("Audio device: %s"), names[index]);
+
+    for (int i = 0; i < n; ++i)
+    {
+        free(ids[i]);
+        free(names[i]);
+    }
+    free(ids);
+    free(names);
+    vlc_object_release(aout);
+    return ret;
+}
+
 vlc_player_vout_listener_id *
 vlc_player_vout_AddListener(vlc_player_t *player,
                             const struct vlc_player_vout_cbs *cbs,
@@ -2683,6 +2764,19 @@ vlc_player_vout_SetOptionEnabled(vlc_player_t *player, const char *option,
     free(vouts);
 }
 
+static void
+vlc_player_vout_TriggerOption(vlc_player_t *player, const char *option)
+{
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        var_TriggerCallback(vouts[i], option);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
 void
 vlc_player_vout_SetFullscreen(vlc_player_t *player, bool enabled)
 {
@@ -2703,6 +2797,345 @@ vlc_player_vout_SetWallpaperModeEnabled(vlc_player_t *player, bool enabled)
     vlc_player_assert_locked(player);
     vlc_player_vout_SetOptionEnabled(player, "video-wallpaper", enabled);
     vlc_player_vout_SendEvent(player, on_wallpaper_mode_changed, NULL, enabled);
+}
+
+void
+vlc_player_vout_Snapshot(vlc_player_t *player)
+{
+    vlc_player_vout_TriggerOption(player, "video-snapshot");
+}
+
+void
+vlc_player_vout_SelectNextAspectRatio(vlc_player_t *player)
+{
+    vlc_player_assert_locked(player);
+
+    size_t vout_count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &vout_count);
+
+    vlc_value_t val;
+    var_Get(vouts[0], "aspect-ratio", &val);
+
+    size_t val_count;
+    vlc_value_t *val_list;
+    char **text_list;
+    var_Change(vouts[0], "aspect-ratio", VLC_VAR_GETCHOICES,
+               &val_count, &val_list, &text_list);
+
+    size_t curidx;
+    for (curidx = 0; curidx < val_count; ++curidx)
+        if (!strcmp(val_list[curidx].psz_string, val.psz_string))
+        {
+            ++curidx;
+            break;
+        }
+    if (curidx == val_count)
+        curidx = 0;
+
+    for (size_t i = 0; i < vout_count; ++i)
+    {
+        var_SetString(vouts[i], "aspect-ratio", val_list[curidx].psz_string);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+
+    vlc_player_vout_SendEvent(player, on_aspect_ratio_selection_changed,
+                              NULL, text_list[curidx]);
+
+    free(val.psz_string);
+    for (size_t i = 0; i < val_count; ++i)
+    {
+        free(val_list[i].psz_string);
+        free(text_list[i]);
+    }
+    free(val_list);
+    free(text_list);
+}
+
+void
+vlc_player_vout_SelectNextCrop(vlc_player_t *player)
+{
+    vlc_player_assert_locked(player);
+
+    size_t vout_count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &vout_count);
+
+    vlc_value_t val;
+    var_Get(vouts[0], "crop", &val);
+
+    size_t val_count;
+    vlc_value_t *val_list;
+    char **text_list;
+    var_Change(vouts[0], "crop", VLC_VAR_GETCHOICES,
+               &val_count, &val_list, &text_list);
+
+    size_t curidx;
+    for (curidx = 0; curidx < val_count; ++curidx)
+        if (!strcmp(val_list[curidx].psz_string, val.psz_string))
+        {
+            ++curidx;
+            break;
+        }
+    if (curidx == val_count)
+        curidx = 0;
+
+    for (size_t i = 0; i < vout_count; ++i)
+    {
+        var_SetString(vouts[i], "crop", val_list[curidx].psz_string);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+
+    vlc_player_vout_SendEvent(player, on_crop_selection_changed,
+                              NULL, text_list[curidx]);
+
+    free(val.psz_string);
+    for (size_t i = 0; i < val_count; ++i)
+    {
+        free(val_list[i].psz_string);
+        free(text_list[i]);
+    }
+    free(val_list);
+    free(text_list);
+}
+
+void
+vlc_player_vout_Crop(vlc_player_t *player,
+                     enum vlc_player_crop crop, int delta)
+{
+    vlc_player_assert_locked(player);
+
+    char const *varname;
+    switch (crop)
+    {
+        case VLC_PLAYER_CROP_TOP:
+            varname = "crop-top";
+            break;
+        case VLC_PLAYER_CROP_BOTTOM:
+            varname = "crop-bottom";
+            break;
+        case VLC_PLAYER_CROP_LEFT:
+            varname = "crop-left";
+            break;
+        case VLC_PLAYER_CROP_RIGHT:
+            varname = "crop-right";
+            break;
+        default:
+            return;
+    }
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        int cropval = var_GetInteger(vouts[i], varname);
+        var_SetInteger(vouts[i], varname, cropval + delta);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_ToggleAutoscale(vlc_player_t *player)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (var_GetFloat(vouts[i], "zoom") != 1.f)
+            var_SetFloat(vouts[i], "zoom", 1.f);
+            // osd_print("Zooming reset")
+        else
+        {
+            bool autoscale = !var_GetBool(vouts[i], "autoscale");
+            var_SetBool(vouts[i], "autoscale", autoscale);
+            // osd_print(autoscale ? "Scaled to screen" : "Original size")
+        }
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_Zoom(vlc_player_t *player, float zoom_delta)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        float cur_zoom = var_GetFloat(vouts[i], "zoom");
+        if (cur_zoom > .3f || cur_zoom < 10.f)
+            var_SetFloat(vouts[i], "zoom", cur_zoom + zoom_delta);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_SetZoomMode(vlc_player_t *player,
+                            enum vlc_player_zoom_mode mode)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+
+    static float const zoom_table[] = { .25f, .5f, 1.f, 2.f };
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        var_SetFloat(vouts[i], "zoom", zoom_table[mode]);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_ChangeZoom(vlc_player_t *player,
+                           enum vlc_player_zoom_direction dir)
+{
+    vlc_player_assert_locked(player);
+
+    size_t vout_count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &vout_count);
+
+    vlc_value_t val;
+    var_Get(vouts[0], "zoom", &val);
+
+    size_t val_count;
+    vlc_value_t *val_list;
+    char **text_list;
+    var_Change(vouts[0], "zoom", VLC_VAR_GETCHOICES,
+               &val_count, &val_list, &text_list);
+
+    size_t curidx;
+    for (curidx = 0; curidx < val_count; ++curidx)
+        if (val_list[curidx].f_float == val.f_float)
+        {
+            if (dir == VLC_PLAYER_ZOOM_IN && curidx + 1 == val_count)
+                curidx = 0;
+            else if (dir == VLC_PLAYER_ZOOM_OUT && !curidx)
+                curidx = val_count - 1;
+            else
+                curidx += dir == VLC_PLAYER_ZOOM_IN ? +1 : -1;
+            break;
+        }
+
+    // osd_print("Zoom mode: %s", text_list[i])
+
+    for (size_t i = 0; i < vout_count; ++i)
+    {
+        var_SetFloat(vouts[i], "zoom", val_list[curidx].f_float);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_ToggleDeinterlace(vlc_player_t *player)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    int deinterlace = var_GetInteger(vouts[0], "deinterlace") ? 0 : 1;
+    for (size_t i = 0; i < count; ++i)
+    {
+        var_SetInteger(vouts[i], "deinterlace", deinterlace);
+        // osd_print("Deinterlace on/off ($deinterlace-mode)")
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_SelectNextDeinterlacer(vlc_player_t *player)
+{
+    vlc_player_assert_locked(player);
+
+    size_t vout_count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &vout_count);
+
+    char *cur_mode = var_GetString(vouts[0], "deinterlace-mode");
+    size_t val_count;
+    vlc_value_t *val_list;
+    var_Change(vouts[0], "deinterlace-mode", VLC_VAR_GETCHOICES,
+               &val_count, &val_list, NULL);
+
+    size_t curidx;
+    for (curidx = 0; curidx < val_count; ++curidx)
+        if (!strcmp(val_list[curidx].psz_string, cur_mode))
+        {
+            ++curidx;
+            break;
+        }
+    if (curidx == val_count)
+        curidx = 0;
+
+    // osd_print(Deinterlace on/off ($deinterlace-mode))
+
+    for (size_t i = 0; i < vout_count; ++i)
+    {
+        var_SetString(vouts[i], "deinterlace-mode",
+                      val_list[curidx].psz_string);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+
+    free(cur_mode);
+    for (size_t i = 0; i < val_count; ++i)
+        free(val_list[i].psz_string);
+    free(val_list);
+}
+
+void
+vlc_player_vout_MoveSubtitle(vlc_player_t *player,
+                             enum vlc_player_subtitle_direction dir)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (dir == VLC_PLAYER_SUBTITLE_DIR_DOWN)
+            var_DecInteger(vouts[i], "sub-margin");
+        else
+            var_IncInteger(vouts[i], "sub-margin");
+        // osd_print("Subtitle position %d px", $sub-margin)
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
+void
+vlc_player_vout_ScaleSubtitle(vlc_player_t *player,
+                              enum vlc_player_subtitle_scale scale)
+{
+    vlc_player_assert_locked(player);
+
+    size_t count;
+    vout_thread_t **vouts = vlc_player_GetVouts(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        int scale_val;
+        if (scale == VLC_PLAYER_SUBTITLE_SCALE_NORMAL)
+            scale_val = 100;
+        else
+        {
+            scale_val = var_GetInteger(vouts[i], "sub-text-scale");
+            scale_val += scale == VLC_PLAYER_SUBTITLE_SCALE_DOWN ? -25 : +25;
+            scale_val = VLC_CLIP(scale_val, 25, 500);
+        }
+        var_SetInteger(vouts[i], "sub-text-scale", scale_val);
+        // osd_print("Subtitle text scale %d%%", scale_val)
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
 }
 
 static void

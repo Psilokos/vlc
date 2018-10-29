@@ -310,6 +310,56 @@ enum vlc_player_abloop
     VLC_PLAYER_ABLOOP_B,
 };
 
+/**
+ * Subtitle position
+ */
+enum vlc_player_subtitle_direction
+{
+    VLC_PLAYER_SUBTITLE_DIR_DOWN,
+    VLC_PLAYER_SUBTITLE_DIR_UP,
+};
+
+/**
+ * Subtitle scale
+ */
+enum vlc_player_subtitle_scale
+{
+    VLC_PLAYER_SUBTITLE_SCALE_NORMAL,
+    VLC_PLAYER_SUBTITLE_SCALE_DOWN,
+    VLC_PLAYER_SUBTITLE_SCALE_UP,
+};
+
+/**
+ * Crop mode
+ */
+enum vlc_player_crop
+{
+    VLC_PLAYER_CROP_TOP,
+    VLC_PLAYER_CROP_BOTTOM,
+    VLC_PLAYER_CROP_LEFT,
+    VLC_PLAYER_CROP_RIGHT,
+};
+
+/**
+ * Zoom mode
+ */
+enum vlc_player_zoom_mode
+{
+    VLC_PLAYER_ZOOM_QUARTER,
+    VLC_PLAYER_ZOOM_HALF,
+    VLC_PLAYER_ZOOM_NORMAL,
+    VLC_PLAYER_ZOOM_DOUBLE,
+};
+
+/**
+ * Zoom direction
+ */
+enum vlc_player_zoom_direction
+{
+    VLC_PLAYER_ZOOM_IN,
+    VLC_PLAYER_ZOOM_OUT,
+};
+
 /** Player capability: can seek */
 #define VLC_PLAYER_CAP_SEEK (1<<0)
 /** Player capability: can pause */
@@ -841,6 +891,12 @@ struct vlc_player_vout_cbs
      */
     void (*on_wallpaper_mode_changed)(vlc_player_t *player,
         vout_thread_t *vout, bool enabled, void *data);
+
+    void (*on_aspect_ratio_selection_changed)(vlc_player_t *player,
+        vout_thread_t *vout, char const *aspect_ratio_text, void *data);
+
+    void (*on_crop_selection_changed)(vlc_player_t *player,
+        vout_thread_t *vout, char const *crop_text, void *data);
 };
 
 /**
@@ -1590,6 +1646,49 @@ VLC_API const struct vlc_player_track *
 vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
 
 /**
+ * Get the selected track from an ES category
+ *
+ * @param player locked player instance
+ * @param cat VIDEO_ES, AUDIO_ES or SPU_ES
+ * @return a valid player track or NULL (if none was selected or if the track
+ * was terminated by the playback thread)
+ */
+VLC_API const struct vlc_player_track *
+vlc_player_GetSelectedTrack(vlc_player_t *player,
+                            enum es_format_category_e cat);
+
+VLC_API ssize_t
+vlc_player_GetSelectedTrackIdx(vlc_player_t *player,
+                               enum es_format_category_e cat);
+
+/**
+ * Helper to get the selected video track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedVideoTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, VIDEO_ES);
+}
+
+/**
+ * Helper to get the selected audio track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedAudioTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, AUDIO_ES);
+}
+
+/**
+ * Helper to get the selected subtitle track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedSubtitleTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, SPU_ES);
+}
+
+/**
  * Select a track from an ES identifier
  *
  * @note A successful call will trigger the
@@ -1601,6 +1700,30 @@ vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
  */
 VLC_API void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *es_id);
+
+VLC_API void
+vlc_player_SelectTrackAt(vlc_player_t *player,
+                         enum es_format_category_e cat, size_t index);
+
+static inline void
+vlc_player_SelectNextTrack(vlc_player_t *player,
+			   enum es_format_category_e cat)
+{
+    size_t i = vlc_player_GetSelectedTrackIdx(player, cat);
+    if (i + 1 == vlc_player_GetTrackCount(player, cat))
+        i = -1;
+    vlc_player_SelectTrackAt(player, cat, ++i);
+}
+
+static inline void
+vlc_player_SelectPrevTrack(vlc_player_t *player,
+                           enum es_format_category_e cat)
+{
+    ssize_t i = vlc_player_GetSelectedTrackIdx(player, cat);
+    if (i <= 0)
+        i = vlc_player_GetTrackCount(player, cat);
+    vlc_player_SelectTrackAt(player, cat, --i);
+}
 
 /**
  * Unselect a track from an ES identifier
@@ -2077,7 +2200,7 @@ vlc_player_Navigate(vlc_player_t *player, enum vlc_player_nav nav);
   */
 VLC_API int
 vlc_player_UpdateViewpoint(vlc_player_t *player,
-                           vlc_viewpoint const *viewpoint,
+                           vlc_viewpoint_t const *viewpoint,
                            enum vlc_player_whence whence);
 
 /**
@@ -2139,7 +2262,7 @@ vlc_player_SetAudioDelay(vlc_player_t *player, vlc_tick_t delay,
 /**
  * Get the subtitle delay for the current media
  *
- * @see vlc_player_cbs.on_audio_delay_changed
+ * @see vlc_player_cbs.on_subtitle_delay_changed
  *
  * @param player locked player instance
  */
@@ -2344,6 +2467,9 @@ vlc_player_aout_ToggleMute(vlc_player_t *player)
 VLC_API int
 vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add);
 
+VLC_API int
+vlc_player_aout_NextDevice(vlc_player_t *player);
+
 /**
  * Add a listener callback for video output events
  *
@@ -2457,6 +2583,47 @@ vlc_player_vout_ToggleWallpaperMode(vlc_player_t *player)
     vlc_player_vout_SetWallpaperModeEnabled(player,
         !vlc_player_vout_IsWallpaperModeEnabled(player));
 }
+
+VLC_API void
+vlc_player_vout_Snapshot(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_SelectNextAspectRatio(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_SelectNextCrop(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_Crop(vlc_player_t *player,
+                     enum vlc_player_crop crop, int delta);
+
+VLC_API void
+vlc_player_vout_ToggleAutoscale(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_Zoom(vlc_player_t *player, float zoom_delta);
+
+VLC_API void
+vlc_player_vout_SetZoomMode(vlc_player_t *player,
+                            enum vlc_player_zoom_mode mode);
+
+VLC_API void
+vlc_player_vout_ChangeZoom(vlc_player_t *player,
+                           enum vlc_player_zoom_direction dir);
+
+VLC_API void
+vlc_player_vout_ToggleDeinterlace(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_SelectNextDeinterlacer(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_MoveSubtitle(vlc_player_t *player,
+                             enum vlc_player_subtitle_direction dir);
+
+VLC_API void
+vlc_player_vout_ScaleSubtitle(vlc_player_t *player,
+                              enum vlc_player_subtitle_scale scale);
 
 /** @} */
 #endif
