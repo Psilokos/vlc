@@ -87,7 +87,7 @@ VLC_API void vout_OSDMessageVA(vout_thread_t *, int, const char *, va_list *);
  * Provided for convenience.
  */
 static inline void
-vout_OSDMesage(vout_thread_t *vout, int channel, const char *format, ...) VLC_FORMAT(3, 4)
+vout_OSDMessage(vout_thread_t *vout, int channel, const char *format, ...)
 {
     va_list args;
     va_start(args, format);

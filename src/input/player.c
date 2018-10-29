@@ -108,8 +108,19 @@ struct vlc_player_input
 
     struct input_stats_t stats;
 
+    vlc_es_id_t *subtitle_es;
+    bool subtitle_enabled;
+
     vlc_tick_t audio_delay;
     vlc_tick_t subtitle_delay;
+
+    struct
+    {
+        vlc_tick_t audio_time;
+        vlc_tick_t subtitle_time;
+    } subsync;
+
+    ssize_t program_idx;
 
     vlc_player_program_vector program_vector;
     vlc_player_track_vector video_track_vector;
@@ -152,6 +163,13 @@ struct vlc_player_t
 
     bool pause_on_cork;
     bool corked;
+
+    struct
+    {
+        int text;
+        int icon;
+        int slider;
+    } osd_channels;
 
     struct vlc_list listeners;
     struct vlc_list aout_listeners;
@@ -566,7 +584,13 @@ vlc_player_input_New(vlc_player_t *player, input_item_t *item)
 
     memset(&input->stats, 0, sizeof(input->stats));
 
-    input->audio_delay = input->subtitle_delay = 0;
+    input->audio_delay =
+    input->subtitle_delay = 0;
+
+    input->subsync.audio_time =
+    input->subsync.subtitle_time = VLC_TICK_INVALID;
+
+    input->program_idx = -1;
 
     vlc_vector_init(&input->program_vector);
     vlc_vector_init(&input->video_track_vector);
@@ -963,10 +987,51 @@ void
 vlc_player_SelectProgram(vlc_player_t *player, int id)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_PROGRAM,
-                                &(vlc_value_t) { .i_int = id });
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_PROGRAM,
+                            &(vlc_value_t) { .i_int = id });
+
+    size_t prgm_idx = 0;
+    struct vlc_player_program *prgm =
+        vlc_player_program_vector_FindById(&input->program_vector,
+                                           id, &prgm_idx);
+    input->program_idx = prgm_idx;
+    vlc_player_vout_OSDMessage(player,
+                               _("Program Service ID: %s"), prgm->name);
+}
+
+void
+vlc_player_CycleProgram(vlc_player_t *player, enum vlc_player_cycle cycle)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+
+    size_t count = vlc_player_GetProgramCount(player);
+    if (!count)
+    {
+        vlc_player_vout_OSDMessage(player,
+                                   _("Program Service ID: %s"), _("N/A"));
+        return;
+    }
+
+    bool prev = cycle == VLC_PLAYER_CYCLE_PREV;
+    size_t idx;
+    if (input->program_idx == -1)
+        idx = prev ? count - 1 : 0;
+    else
+    {
+        idx = input->program_idx;
+        if (prev)
+            idx = (idx > 0 ? idx : count) - 1;
+        else
+            idx = idx + 1 < count ? idx + 1 : 0;
+    }
+    const struct vlc_player_program *prgm =
+        vlc_player_GetProgramAt(player, idx);
+    vlc_player_SelectProgram(player, prgm->group_id);
 }
 
 static void
@@ -1130,22 +1195,150 @@ vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *id)
     return vlc_player_track_vector_FindById(vec, id, NULL);
 }
 
+static ssize_t
+vlc_player_GetSelectedTrackIdx(vlc_player_t *player,
+                               enum es_format_category_e cat)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return -1;
+    vlc_player_track_vector *vec = vlc_player_input_GetTrackVector(input, cat);
+    struct vlc_player_track *track;
+    vlc_vector_foreach(track, vec)
+        if (track->selected)
+            return vlc_vector_idx_track;
+    return -1;
+}
+
+const struct vlc_player_track *
+vlc_player_GetSelectedTrack(vlc_player_t *player,
+                            enum es_format_category_e cat)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return NULL;
+    vlc_player_track_vector *vec = vlc_player_input_GetTrackVector(input, cat);
+    ssize_t index = vlc_player_GetSelectedTrackIdx(player, cat);
+    if (index == -1)
+        return NULL;
+    return vec->data[index];
+}
+
+static inline void
+vlc_player_DisplayTrack(vlc_player_t *player,
+                        enum es_format_category_e cat, char const *track_name)
+{
+    char const *cat_name = NULL;
+    switch (cat)
+    {
+        case VIDEO_ES:
+            cat_name = "Video";
+            break;
+        case AUDIO_ES:
+            cat_name = "Audio";
+            break;
+        case SPU_ES:
+            cat_name = "Subtitle";
+            break;
+        default:
+            return;
+    }
+    vlc_player_vout_OSDMessage(player, _("%s track: %s"),
+                               cat_name, track_name);
+}
+
 void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *id)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPushEsHelper(input->thread, INPUT_CONTROL_SET_ES, id);
+    input_ControlPushEsHelper(input->thread, INPUT_CONTROL_SET_ES, id);
+
+    enum es_format_category_e cat = vlc_es_id_GetCat(id);
+    if (cat == SPU_ES)
+    {
+        input->subtitle_es = id;
+        input->subtitle_enabled = true;
+    }
+
+    struct vlc_player_track const *track = vlc_player_GetTrack(player, id);
+    if (!track)
+        return;
+    vlc_player_DisplayTrack(player, cat, track->name);
+}
+
+static void
+vlc_player_CycleTrack(vlc_player_t *player,
+                      enum es_format_category_e cat, bool next)
+{
+    size_t count = vlc_player_GetTrackCount(player, cat);
+    if (!count)
+    {
+        vlc_player_DisplayTrack(player, cat, _("N/A"));
+        return;
+    }
+    size_t i = vlc_player_GetSelectedTrackIdx(player, cat);
+    if (next && i + 1 == count)
+        i = -1;
+    else if (!next && i == 0)
+        i = count;
+    struct vlc_player_track const *track =
+        vlc_player_GetTrackAt(player, cat, i + (next ? +1 : -1));
+    vlc_player_SelectTrack(player, track->es_id);
+}
+
+void
+vlc_player_SelectPrevTrack(vlc_player_t *player,
+                           enum es_format_category_e cat)
+{
+    vlc_player_CycleTrack(player, cat, false);
+}
+
+void
+vlc_player_SelectNextTrack(vlc_player_t *player,
+                           enum es_format_category_e cat)
+{
+    vlc_player_CycleTrack(player, cat, true);
 }
 
 void
 vlc_player_UnselectTrack(vlc_player_t *player, vlc_es_id_t *id)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPushEsHelper(input->thread, INPUT_CONTROL_UNSET_ES, id);
+    input_ControlPushEsHelper(input->thread, INPUT_CONTROL_UNSET_ES, id);
+
+    if (input->subtitle_es == id)
+        input->subtitle_enabled = false;
+
+    vlc_player_DisplayTrack(player, vlc_es_id_GetCat(id), _("N/A"));
+}
+
+void
+vlc_player_ToggleSubtitle(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+
+    if (!vlc_player_GetTrackCount(player, SPU_ES))
+    {
+        vlc_player_DisplayTrack(player, SPU_ES, _("N/A"));
+        return;
+    }
+
+    vlc_es_id_t *es_id = input->subtitle_es;
+    if (!es_id)
+        es_id = vlc_player_GetTrackAt(player, SPU_ES, 0)->es_id;
+    if (input->subtitle_enabled)
+        vlc_player_UnselectTrack(player, es_id);
+    else
+        vlc_player_SelectTrack(player, es_id);
+    input->subtitle_enabled = !input->subtitle_enabled;
 }
 
 void
@@ -1932,6 +2125,7 @@ vlc_player_Start(vlc_player_t *player)
         if (player->next_media)
         {
             player->started = true;
+            vlc_player_vout_OSDIcon(player, OSD_PLAY_ICON);
             return VLC_SUCCESS;
         }
         else
@@ -1958,8 +2152,8 @@ vlc_player_Start(vlc_player_t *player)
     }
 
     int ret = vlc_player_input_Start(player->input);
-    if (ret == VLC_SUCCESS)
-        player->started = true;
+
+    vlc_player_vout_OSDIcon(player, OSD_PLAY_ICON);
     return ret;
 }
 
@@ -2014,6 +2208,8 @@ vlc_player_SetPause(vlc_player_t *player, bool pause)
 
     vlc_value_t val = { .i_int = pause ? PAUSE_S : PLAYING_S };
     input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_STATE, &val);
+
+    vlc_player_vout_OSDIcon(player, pause ? OSD_PAUSE_ICON : OSD_PLAY_ICON);
 }
 
 void
@@ -2032,9 +2228,10 @@ void
 vlc_player_NextVideoFrame(vlc_player_t *player)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_FRAME_NEXT,
-                                NULL);
+    if (!input)
+        return;
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_FRAME_NEXT, NULL);
+    vlc_player_vout_OSDMessage(player, _("Next frame"));
 }
 
 enum vlc_player_state
@@ -2086,6 +2283,8 @@ vlc_player_ChangeRate(vlc_player_t *player, float rate)
     }
     else
         vlc_player_SendEvent(player, on_rate_changed, rate);
+
+    vlc_player_vout_OSDMessage(player, _("Speed: %.2fx"), rate);
 }
 
 static void
@@ -2161,23 +2360,48 @@ vlc_player_assert_seek_params(enum vlc_player_seek_speed speed,
     (void) speed; (void) whence;
 }
 
+static inline void
+vlc_player_DisplayPosition(vlc_player_t *player)
+{
+    char psz_pos[MSTRTIME_MAX_SIZE];
+    char psz_len[MSTRTIME_MAX_SIZE];
+
+    int64_t pos = MS_FROM_VLC_TICK(vlc_player_GetTime(player));
+    int64_t len = MS_FROM_VLC_TICK(vlc_player_GetLength(player));
+
+    secstotimestr(psz_pos, pos);
+    if (len > 0)
+    {
+        secstotimestr(psz_len, len);
+        vlc_player_vout_OSDMessage(player, "%s / %s", psz_pos, psz_len);
+    }
+    else if (pos > 0)
+        vlc_player_vout_OSDMessage(player, "%s", psz_pos);
+
+    if (vlc_player_vout_IsFullscreen(player))
+        vlc_player_vout_OSDSlider(player, pos, OSD_HOR_SLIDER);
+}
+
 void
 vlc_player_SeekByPos(vlc_player_t *player, float position,
                      enum vlc_player_seek_speed speed,
                      enum vlc_player_whence whence)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
     vlc_player_assert_seek_params(speed, whence);
 
     const int type =
         whence == VLC_PLAYER_WHENCE_ABSOLUTE ? INPUT_CONTROL_SET_POSITION
                                              : INPUT_CONTROL_JUMP_POSITION;
-    if (input)
-        input_ControlPush(input->thread, type,
-            &(input_control_param_t) {
-                .pos.f_val = position,
-                .pos.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
-        });
+    input_ControlPush(input->thread, type,
+        &(input_control_param_t) {
+            .pos.f_val = position,
+            .pos.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
+    });
+
+    vlc_player_DisplayPosition(player);
 }
 
 void
@@ -2186,17 +2410,20 @@ vlc_player_SeekByTime(vlc_player_t *player, vlc_tick_t time,
                       enum vlc_player_whence whence)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
     vlc_player_assert_seek_params(speed, whence);
 
     const int type =
         whence == VLC_PLAYER_WHENCE_ABSOLUTE ? INPUT_CONTROL_SET_TIME
                                              : INPUT_CONTROL_JUMP_TIME;
-    if (input)
-        input_ControlPush(input->thread, type,
-            &(input_control_param_t) {
-                .time.i_val = time,
-                .time.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
-        });
+    input_ControlPush(input->thread, type,
+        &(input_control_param_t) {
+            .time.i_val = time,
+            .time.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
+    });
+
+    vlc_player_DisplayPosition(player);
 }
 
 void
@@ -2364,27 +2591,39 @@ vlc_player_IsRecording(vlc_player_t *player)
 }
 
 void
-vlc_player_SetRecordingEnabled(vlc_player_t *player, bool enabled)
+vlc_player_SetRecordingEnabled(vlc_player_t *player, bool enable)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_RECORD_STATE,
-                                &(vlc_value_t) { .b_bool = enabled });
+    if (!input)
+        return;
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_RECORD_STATE,
+                            &(vlc_value_t) { .b_bool = enable });
+
+    vlc_player_vout_OSDMessage(player, enable ?
+                               _("Recording") : _("Recording done"));
 }
 
 void
 vlc_player_SetAudioDelay(vlc_player_t *player, vlc_tick_t delay,
                          enum vlc_player_whence whence)
 {
+    bool absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE;
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPush(input->thread, INPUT_CONTROL_SET_AUDIO_DELAY,
-            &(input_control_param_t) {
-                .delay = {
-                    .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
-                    .i_val = delay,
-                },
-        });
+    if (!input)
+        return;
+
+    input_ControlPush(input->thread, INPUT_CONTROL_SET_AUDIO_DELAY,
+        &(input_control_param_t) {
+            .delay = {
+                .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
+                .i_val = delay,
+            },
+    });
+
+    if (!absolute)
+        delay += input->audio_delay;
+    vlc_player_vout_OSDMessage(player, _("Audio delay: %i ms"),
+                               (int)MS_FROM_VLC_TICK(delay));
 }
 
 vlc_tick_t
@@ -2394,20 +2633,99 @@ vlc_player_GetAudioDelay(vlc_player_t *player)
     return input ? input->audio_delay : 0;
 }
 
+static void
+vlc_player_SetSubtitleDelayOptionalDisplay(vlc_player_t *player,
+                                           vlc_tick_t delay,
+                                           enum vlc_player_whence whence,
+                                           bool display)
+{
+    bool absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE;
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+
+    input_ControlPush(input->thread, INPUT_CONTROL_SET_SPU_DELAY,
+        &(input_control_param_t) {
+            .delay = {
+                .b_absolute = absolute,
+                .i_val = delay,
+            },
+    });
+
+    if (!display)
+        return;
+    if (!absolute)
+        delay += input->subtitle_delay;
+    vlc_player_vout_OSDMessage(player, _("Subtitle delay: %i ms"),
+                               (int)MS_FROM_VLC_TICK(delay));
+}
+
 void
 vlc_player_SetSubtitleDelay(vlc_player_t *player, vlc_tick_t delay,
                             enum vlc_player_whence whence)
 {
-    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    vlc_player_SetSubtitleDelayOptionalDisplay(player, delay, whence, true);
+}
 
-    if (input)
-        input_ControlPush(input->thread, INPUT_CONTROL_SET_SPU_DELAY,
-            &(input_control_param_t) {
-                .delay = {
-                    .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
-                    .i_val = delay,
-                },
-        });
+void
+vlc_player_SubtitleSyncMarkAudio(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+    input->subsync.audio_time = vlc_tick_now();
+    vlc_player_vout_OSDMessage(player, _("Sub sync: bookmarked audio time"));
+}
+
+void
+vlc_player_SubtitleSyncMarkSubtitle(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input || !input->subtitle_enabled)
+        return;
+    input->subsync.subtitle_time = vlc_tick_now();
+    vlc_player_vout_OSDMessage(player, _("Sub sync: bookmarked subtitle time"));
+}
+
+void
+vlc_player_SubtitleSyncApply(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+    if (input->subsync.audio_time == VLC_TICK_INVALID ||
+        input->subsync.subtitle_time == VLC_TICK_INVALID)
+    {
+        vlc_player_vout_OSDMessage(player,
+                                   _("Sub sync: set bookmarks first!"));
+        return;
+    }
+    vlc_tick_t delay =
+        input->subsync.audio_time - input->subsync.subtitle_time;
+    input->subsync.audio_time = VLC_TICK_INVALID;
+    input->subsync.subtitle_time = VLC_TICK_INVALID;
+    vlc_player_SetSubtitleDelayOptionalDisplay(
+            player, delay, VLC_PLAYER_WHENCE_RELATIVE, false);
+
+    long long delay_ms = MS_FROM_VLC_TICK(delay);
+    long long totdelay_ms = MS_FROM_VLC_TICK(input->subtitle_delay + delay);
+    vlc_player_vout_OSDMessage(player,
+                               _("Sub sync: corrected %"PRId64
+                                 " ms (total delay = %"PRId64" ms)"),
+                               delay_ms, totdelay_ms);
+}
+
+void
+vlc_player_SubtitleSyncReset(vlc_player_t *player)
+{
+    struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
+    vlc_player_SetSubtitleDelayOptionalDisplay(
+            player, 0, VLC_PLAYER_WHENCE_RELATIVE, false);
+    input->subsync.audio_time = VLC_TICK_INVALID;
+    input->subsync.subtitle_time = VLC_TICK_INVALID;
+    vlc_player_vout_OSDMessage(player, _("Sub sync: delay reset"));
 }
 
 vlc_tick_t
@@ -2559,6 +2877,16 @@ vlc_player_aout_GetVolume(vlc_player_t *player)
     return vol;
 }
 
+static void
+vlc_player_DisplayVolume(vlc_player_t *player)
+{
+    float volume = vlc_player_aout_GetVolume(player);
+    if (vlc_player_vout_IsFullscreen(player))
+        vlc_player_vout_OSDSlider(player, volume, OSD_VERT_SLIDER);
+    vlc_player_vout_OSDMessage(player, _("Volume: %ld%%"),
+                               lroundf(volume * 100.f));
+}
+
 int
 vlc_player_aout_SetVolume(vlc_player_t *player, float volume)
 {
@@ -2568,6 +2896,7 @@ vlc_player_aout_SetVolume(vlc_player_t *player, float volume)
     int ret = aout_VolumeSet(aout, volume);
     vlc_object_release(aout);
 
+    vlc_player_DisplayVolume(player);
     return ret;
 }
 
@@ -2580,6 +2909,7 @@ vlc_player_aout_IncrementVolume(vlc_player_t *player, int steps, float *result)
     int ret = aout_VolumeUpdate(aout, steps, result);
     vlc_object_release(aout);
 
+    vlc_player_DisplayVolume(player);
     return ret;
 }
 
@@ -2604,6 +2934,10 @@ vlc_player_aout_Mute(vlc_player_t *player, bool mute)
     int ret = aout_MuteSet (aout, mute);
     vlc_object_release(aout);
 
+    if (mute)
+        vlc_player_vout_OSDIcon(player, OSD_MUTE_ICON);
+    else
+        vlc_player_DisplayVolume(player);
     return ret;
 }
 
@@ -2618,6 +2952,47 @@ vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add)
     vlc_object_release(aout);
 
     return 0;
+}
+
+int
+vlc_player_aout_NextDevice(vlc_player_t *player)
+{
+    audio_output_t *aout = vlc_player_aout_Hold(player);
+    if (!aout)
+        return -1;
+
+    char **ids, **names;
+    int n = aout_DevicesList(aout, &ids, &names);
+    if (n == -1)
+    {
+        vlc_object_release(aout);
+        return -1;
+    }
+
+    char *device = aout_DeviceGet(aout);
+    int index;
+    for (index = 0; index < n; ++index)
+        if (!strcmp(names[index], device))
+        {
+            index = (index + 1) % n;
+            break;
+        }
+    free(device);
+
+    int ret = aout_DeviceSet(aout, ids[index]);
+    if (!ret)
+        vlc_player_vout_OSDMessage(player,
+                                   _("Audio device: %s"), names[index]);
+
+    for (int i = 0; i < n; ++i)
+    {
+        free(ids[i]);
+        free(names[i]);
+    }
+    free(ids);
+    free(names);
+    vlc_object_release(aout);
+    return ret;
 }
 
 vout_thread_t *
@@ -2714,6 +3089,19 @@ vlc_player_vout_SetOptionEnabled(vlc_player_t *player, const char *option,
     free(vouts);
 }
 
+static void
+vlc_player_vout_TriggerOption(vlc_player_t *player, const char *option)
+{
+    size_t count;
+    vout_thread_t **vouts = vlc_player_vout_HoldAll(player, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        var_TriggerCallback(vouts[i], option);
+        vlc_object_release(vouts[i]);
+    }
+    free(vouts);
+}
+
 void
 vlc_player_vout_SetFullscreen(vlc_player_t *player, bool enabled)
 {
@@ -2734,6 +3122,74 @@ vlc_player_vout_SetWallpaperModeEnabled(vlc_player_t *player, bool enabled)
     vlc_player_assert_locked(player);
     vlc_player_vout_SetOptionEnabled(player, "video-wallpaper", enabled);
     vlc_player_vout_SendEvent(player, on_wallpaper_mode_changed, NULL, enabled);
+}
+
+void
+vlc_player_vout_Snapshot(vlc_player_t *player)
+{
+    vlc_player_vout_TriggerOption(player, "video-snapshot");
+}
+
+void
+vlc_player_vout_SetOSDChannel(vlc_player_t *player,
+                              enum vlc_player_osd osd_mode, int channel)
+{
+    vlc_player_assert_locked(player);
+    switch (osd_mode)
+    {
+        case VLC_PLAYER_OSD_TEXT:
+            player->osd_channels.text = channel;
+            break;
+        case VLC_PLAYER_OSD_ICON:
+            player->osd_channels.icon = channel;
+            break;
+        case VLC_PLAYER_OSD_SLIDER:
+            player->osd_channels.slider = channel;
+            break;
+    }
+}
+
+void
+vlc_player_vout_OSDAction(vlc_player_t *player,
+                          enum vlc_player_osd osd_mode, ...)
+{
+    size_t count;
+    vout_thread_t **vouts = vlc_player_vout_HoldAll(player, &count);
+
+    va_list args;
+    va_start(args, osd_mode);
+    switch (osd_mode)
+    {
+        case VLC_PLAYER_OSD_TEXT:
+        {
+            char const *fmt = va_arg(args, char const *);
+            for (size_t i = 0; i < count; ++i)
+                vout_OSDMessageVA(vouts[i],
+                                  player->osd_channels.text, fmt, &args);
+            break;
+        }
+        case VLC_PLAYER_OSD_ICON:
+        {
+            int type = va_arg(args, int);
+            for (size_t i = 0; i < count; ++i)
+                vout_OSDIcon(vouts[i], player->osd_channels.icon, type);
+            break;
+        }
+        case VLC_PLAYER_OSD_SLIDER:
+        {
+            int pos = va_arg(args, int);
+            int type = va_arg(args, int);
+            for (size_t i = 0; i < count; ++i)
+                vout_OSDSlider(vouts[i],
+                               player->osd_channels.slider, pos, type);
+            break;
+        }
+    }
+    va_end(args);
+
+    for (size_t i = 0; i < count; ++i)
+        vlc_object_release(vouts[i]);
+    free(vouts);
 }
 
 static void
@@ -2821,6 +3277,9 @@ vlc_player_New(vlc_object_t *parent,
     player->start_paused = false;
     player->pause_on_cork = false;
     player->corked = false;
+    player->osd_channels.text = VOUT_SPU_CHANNEL_OSD;
+    player->osd_channels.icon = VOUT_SPU_CHANNEL_OSD;
+    player->osd_channels.slider = VOUT_SPU_CHANNEL_OSD;
     player->renderer = NULL;
     player->media_provider = media_provider;
     player->media_provider_data = media_provider_data;

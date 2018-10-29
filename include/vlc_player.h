@@ -310,6 +310,88 @@ enum vlc_player_abloop
     VLC_PLAYER_ABLOOP_B,
 };
 
+/**
+ * Track selection
+ */
+enum vlc_player_track_select
+{
+    VLC_PLAYER_TRACK_SELECT_PREV,
+    VLC_PLAYER_TRACK_SELECT_NEXT,
+};
+
+/**
+ * Subtitle position
+ */
+enum vlc_player_subtitle_direction
+{
+    VLC_PLAYER_SUBTITLE_DIR_DOWN,
+    VLC_PLAYER_SUBTITLE_DIR_UP,
+};
+
+/**
+ * Subtitle scale
+ */
+enum vlc_player_subtitle_scale
+{
+    VLC_PLAYER_SUBTITLE_SCALE_NORMAL,
+    VLC_PLAYER_SUBTITLE_SCALE_DOWN,
+    VLC_PLAYER_SUBTITLE_SCALE_UP,
+};
+
+/**
+ * Subtitle sync es cat
+ */
+
+/**
+ * Crop mode
+ */
+enum vlc_player_crop
+{
+    VLC_PLAYER_CROP_TOP,
+    VLC_PLAYER_CROP_BOTTOM,
+    VLC_PLAYER_CROP_LEFT,
+    VLC_PLAYER_CROP_RIGHT,
+};
+
+/**
+ * Zoom mode
+ */
+enum vlc_player_zoom_mode
+{
+    VLC_PLAYER_ZOOM_QUARTER,
+    VLC_PLAYER_ZOOM_HALF,
+    VLC_PLAYER_ZOOM_NORMAL,
+    VLC_PLAYER_ZOOM_DOUBLE,
+};
+
+/**
+ * Zoom direction
+ */
+enum vlc_player_zoom_direction
+{
+    VLC_PLAYER_ZOOM_IN,
+    VLC_PLAYER_ZOOM_OUT,
+};
+
+/**
+ * Cycle mode
+ */
+enum vlc_player_cycle
+{
+    VLC_PLAYER_CYCLE_PREV,
+    VLC_PLAYER_CYCLE_NEXT,
+};
+
+/**
+ * OSD mode
+ */
+enum vlc_player_osd
+{
+    VLC_PLAYER_OSD_TEXT,
+    VLC_PLAYER_OSD_ICON,
+    VLC_PLAYER_OSD_SLIDER,
+};
+
 /** Player capability: can seek */
 #define VLC_PLAYER_CAP_SEEK (1<<0)
 /** Player capability: can pause */
@@ -857,6 +939,12 @@ struct vlc_player_vout_cbs
      */
     void (*on_wallpaper_mode_changed)(vlc_player_t *player,
         vout_thread_t *vout, bool enabled, void *data);
+
+    void (*on_aspect_ratio_selection_changed)(vlc_player_t *player,
+        vout_thread_t *vout, char const *aspect_ratio_text, void *data);
+
+    void (*on_crop_selection_changed)(vlc_player_t *player,
+        vout_thread_t *vout, char const *crop_text, void *data);
 };
 
 /**
@@ -1606,6 +1694,45 @@ VLC_API const struct vlc_player_track *
 vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
 
 /**
+ * Get the selected track from an ES category
+ *
+ * @param player locked player instance
+ * @param cat VIDEO_ES, AUDIO_ES or SPU_ES
+ * @return a valid player track or NULL (if none was selected or if the track
+ * was terminated by the playback thread)
+ */
+VLC_API const struct vlc_player_track *
+vlc_player_GetSelectedTrack(vlc_player_t *player,
+                            enum es_format_category_e cat);
+
+/**
+ * Helper to get the selected video track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedVideoTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, VIDEO_ES);
+}
+
+/**
+ * Helper to get the selected audio track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedAudioTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, AUDIO_ES);
+}
+
+/**
+ * Helper to get the selected subtitle track
+ */
+static inline const struct vlc_player_track *
+vlc_player_GetSelectedSubtitleTrack(vlc_player_t *player)
+{
+    return vlc_player_GetSelectedTrack(player, SPU_ES);
+}
+
+/**
  * Select a track from an ES identifier
  *
  * @note A successful call will trigger the
@@ -1617,6 +1744,14 @@ vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
  */
 VLC_API void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *es_id);
+
+VLC_API void
+vlc_player_SelectPrevTrack(vlc_player_t *player,
+                           enum es_format_category_e cat);
+
+VLC_API void
+vlc_player_SelectNextTrack(vlc_player_t *player,
+                           enum es_format_category_e cat);
 
 /**
  * Unselect a track from an ES identifier
@@ -1648,6 +1783,9 @@ vlc_player_UnselectTrackCategory(vlc_player_t *player,
             vlc_player_UnselectTrack(player, track->es_id);
     }
 }
+
+VLC_API void
+vlc_player_ToggleSubtitle(vlc_player_t *player);
 
 /**
  * Restart a track from an ES identifier
@@ -1770,6 +1908,9 @@ vlc_player_GetProgram(vlc_player_t *player, int group_id);
  */
 VLC_API void
 vlc_player_SelectProgram(vlc_player_t *player, int group_id);
+
+VLC_API void
+vlc_player_CycleProgram(vlc_player_t *player, enum vlc_player_cycle cycle);
 
 /**
  * Check if the media has a teletext menu
@@ -2155,12 +2296,24 @@ vlc_player_SetAudioDelay(vlc_player_t *player, vlc_tick_t delay,
 /**
  * Get the subtitle delay for the current media
  *
- * @see vlc_player_cbs.on_audio_delay_changed
+ * @see vlc_player_cbs.on_subtitle_delay_changed
  *
  * @param player locked player instance
  */
 VLC_API vlc_tick_t
 vlc_player_GetSubtitleDelay(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncMarkAudio(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncMarkSubtitle(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncApply(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncReset(vlc_player_t *player);
 
 /**
  * Set the subtitle delay for the current media
@@ -2351,6 +2504,9 @@ vlc_player_aout_ToggleMute(vlc_player_t *player)
 VLC_API int
 vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add);
 
+VLC_API int
+vlc_player_aout_NextDevice(vlc_player_t *player);
+
 /**
  * Get and hold the main video output
  *
@@ -2491,6 +2647,32 @@ vlc_player_vout_ToggleWallpaperMode(vlc_player_t *player)
 {
     vlc_player_vout_SetWallpaperModeEnabled(player,
         !vlc_player_vout_IsWallpaperModeEnabled(player));
+}
+
+VLC_API void
+vlc_player_vout_Snapshot(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_SetOSDChannel(vlc_player_t *player,
+                              enum vlc_player_osd osd_mode, int channel);
+
+VLC_API void
+vlc_player_vout_OSDAction(vlc_player_t *player,
+                          enum vlc_player_osd osd_mode, ...);
+
+#define vlc_player_vout_OSDMessage(player, fmt...) \
+    vlc_player_vout_OSDAction(player, VLC_PLAYER_OSD_TEXT, fmt)
+
+static inline void
+vlc_player_vout_OSDIcon(vlc_player_t *player, short type)
+{
+    vlc_player_vout_OSDAction(player, VLC_PLAYER_OSD_ICON, type);
+}
+
+static inline void
+vlc_player_vout_OSDSlider(vlc_player_t *player, int position, short type)
+{
+    vlc_player_vout_OSDAction(player, VLC_PLAYER_OSD_SLIDER, position, type);
 }
 
 /** @} */
