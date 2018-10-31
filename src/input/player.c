@@ -951,10 +951,18 @@ void
 vlc_player_SelectProgram(vlc_player_t *player, int id)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_PROGRAM,
-                                &(vlc_value_t) { .i_int = id });
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_PROGRAM,
+                            &(vlc_value_t) { .i_int = id });
+
+    const struct vlc_player_program *program =
+        vlc_player_GetProgram(player, id);
+    if (program)
+        vlc_player_vout_OSDMessage(player, _("Program Service ID: %s"),
+                                   program->name);
+    return VLC_SUCCESS;
 }
 
 static void
@@ -1151,9 +1159,27 @@ void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *id)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPushEsHelper(input->thread, INPUT_CONTROL_SET_ES, id);
+    input_ControlPushEsHelper(input->thread, INPUT_CONTROL_SET_ES, id);
+
+    char const *cat = NULL;
+    switch (id->cat)
+    {
+        case VIDEO_ES:
+            cat = "Video";
+            break;
+        case AUDIO_ES:
+            cat = "Audio";
+            break;
+        case SPU_ES:
+            cat = "Subtitle";
+            break;
+    }
+    vlc_player_vout_OSDMessage(player, _("%s track: %s"),
+                               vlc_gettext(cat),
+                               vlc_player_GetTrack(id)->name);
 }
 
 void
@@ -1174,6 +1200,8 @@ vlc_player_UnselectTrack(vlc_player_t *player, vlc_es_id_t *id)
 
     if (input)
         input_ControlPushEsHelper(input->thread, INPUT_CONTROL_UNSET_ES, id);
+
+    // TODO osd print smth ?
 }
 
 void
@@ -1959,6 +1987,7 @@ vlc_player_Start(vlc_player_t *player)
         if (player->next_media)
         {
             player->started = true;
+            vlc_player_vout_OSDIcon(player, OSD_PLAY_ICON);
             return VLC_SUCCESS;
         }
         else
@@ -1985,8 +2014,8 @@ vlc_player_Start(vlc_player_t *player)
     }
 
     int ret = vlc_player_input_Start(player->input);
-    if (ret == VLC_SUCCESS)
-        player->started = true;
+
+    vlc_player_vout_OSDIcon(player, OSD_PLAY_ICON);
     return ret;
 }
 
@@ -2011,6 +2040,8 @@ vlc_player_Stop(vlc_player_t *player)
         player->next_input = NULL;
     }
 #endif
+
+    vlc_player_vout_OSDIcon(player, OSD_STOP_ICON);
 }
 
 void
@@ -2041,6 +2072,8 @@ vlc_player_SetPause(vlc_player_t *player, bool pause)
 
     vlc_value_t val = { .i_int = pause ? PAUSE_S : PLAYING_S };
     input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_STATE, &val);
+
+    vlc_player_vout_OSDIcon(player, pause ? OSD_PAUSE_ICON : OSD_PLAY_ICON);
 }
 
 void
@@ -2059,9 +2092,11 @@ void
 vlc_player_NextVideoFrame(vlc_player_t *player)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_FRAME_NEXT,
-                                NULL);
+    if (!input)
+        return;
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_FRAME_NEXT, NULL);
+
+    vlc_player_vout_OSDMessage(player, _("Next frame"));
 }
 
 enum vlc_player_state
@@ -2113,6 +2148,8 @@ vlc_player_ChangeRate(vlc_player_t *player, float rate)
     }
     else
         vlc_player_SendEvent(player, on_rate_changed, rate);
+
+    vlc_player_OSDMessage(player, _("Speed: %.2fx"), rate);
 }
 
 static void
@@ -2188,23 +2225,32 @@ vlc_player_assert_seek_params(enum vlc_player_seek_speed speed,
     (void) speed; (void) whence;
 }
 
+static inline void
+vlc_player_DisplayPosition(vlc_player_t *player)
+{
+    // TODO
+}
+
 void
 vlc_player_SeekByPos(vlc_player_t *player, float position,
                      enum vlc_player_seek_speed speed,
                      enum vlc_player_whence whence)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
     vlc_player_assert_seek_params(speed, whence);
 
     const int type =
         whence == VLC_PLAYER_WHENCE_ABSOLUTE ? INPUT_CONTROL_SET_POSITION
                                              : INPUT_CONTROL_JUMP_POSITION;
-    if (input)
-        input_ControlPush(input->thread, type,
-            &(input_control_param_t) {
-                .pos.f_val = position,
-                .pos.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
-        });
+    input_ControlPush(input->thread, type,
+        &(input_control_param_t) {
+            .pos.f_val = position,
+            .pos.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
+    });
+
+    vlc_player_DisplayPosition(player);
 }
 
 void
@@ -2213,17 +2259,20 @@ vlc_player_SeekByTime(vlc_player_t *player, vlc_tick_t time,
                       enum vlc_player_whence whence)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
     vlc_player_assert_seek_params(speed, whence);
 
     const int type =
         whence == VLC_PLAYER_WHENCE_ABSOLUTE ? INPUT_CONTROL_SET_TIME
                                              : INPUT_CONTROL_JUMP_TIME;
-    if (input)
-        input_ControlPush(input->thread, type,
-            &(input_control_param_t) {
-                .time.i_val = time,
-                .time.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
-        });
+    input_ControlPush(input->thread, type,
+        &(input_control_param_t) {
+            .time.i_val = time,
+            .time.b_fast_seek = speed == VLC_PLAYER_SEEK_FAST,
+    });
+
+    vlc_player_DisplayPosition(player);
 }
 
 void
@@ -2396,24 +2445,36 @@ void
 vlc_player_SetRecordingEnabled(vlc_player_t *player, bool enabled)
 {
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_RECORD_STATE,
-                                &(vlc_value_t) { .b_bool = enabled });
+    if (!input)
+        return;
+    input_ControlPushHelper(input->thread, INPUT_CONTROL_SET_RECORD_STATE,
+                            &(vlc_value_t) { .b_bool = enabled });
+
+    vlc_player_vout_OSDMessage(player, enable ?
+                               _("Recording") : _("Recording done"));
 }
 
 void
 vlc_player_SetAudioDelay(vlc_player_t *player, vlc_tick_t delay,
                          enum vlc_player_whence whence)
 {
+    bool absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE;
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
-    if (input)
-        input_ControlPush(input->thread, INPUT_CONTROL_SET_AUDIO_DELAY,
-            &(input_control_param_t) {
-                .delay = {
-                    .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
-                    .i_val = delay,
-                },
-        });
+    if (!input)
+        return;
+
+    input_ControlPush(input->thread, INPUT_CONTROL_SET_AUDIO_DELAY,
+        &(input_control_param_t) {
+            .delay = {
+                .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
+                .i_val = delay,
+            },
+    });
+
+    if (!absolute)
+        delay += input->audio_delay;
+    vlc_player_vout_OSDMessage(player, _("Audio delay: %i ms"),
+                               (int)MS_FROM_VLC_TICK(delay));
 }
 
 vlc_tick_t
@@ -2427,16 +2488,23 @@ void
 vlc_player_SetSubtitleDelay(vlc_player_t *player, vlc_tick_t delay,
                             enum vlc_player_whence whence)
 {
+    bool absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE;
     struct vlc_player_input *input = vlc_player_get_input_locked(player);
+    if (!input)
+        return;
 
-    if (input)
-        input_ControlPush(input->thread, INPUT_CONTROL_SET_SPU_DELAY,
-            &(input_control_param_t) {
-                .delay = {
-                    .b_absolute = whence == VLC_PLAYER_WHENCE_ABSOLUTE,
-                    .i_val = delay,
-                },
-        });
+    input_ControlPush(input->thread, INPUT_CONTROL_SET_SPU_DELAY,
+        &(input_control_param_t) {
+            .delay = {
+                .b_absolute = absolute,
+                .i_val = delay,
+            },
+    });
+
+    if (!absolute)
+        delay += input->subtitle_delay;
+    vlc_player_vout_OSDMessage(player, _("Subtitle delay: %i ms"),
+                               (int)MS_FROM_VLC_TICK(delay));
 }
 
 vlc_tick_t
@@ -2582,6 +2650,16 @@ vlc_player_aout_GetVolume(vlc_player_t *player)
     return aout_VolumeGet(aout);
 }
 
+static void
+vlc_player_DisplayVolume(vlc_player_t *player)
+{
+    float volume = vlc_player_aout_GetVolume(player);
+    if (vlc_player_vout_IsFullscreen(player))
+        vlc_player_vout_OSDSlider(player, volume, OSD_VERT_SLIDER);
+    vlc_player_vout_OSDMessage(player, _("Volume: %ld%%"),
+                               lroundf(volume * 100.f));
+}
+
 int
 vlc_player_aout_SetVolume(vlc_player_t *player, float volume)
 {
@@ -2591,6 +2669,7 @@ vlc_player_aout_SetVolume(vlc_player_t *player, float volume)
     int ret = aout_VolumeSet(aout, volume);
     vlc_object_release(aout);
 
+    vlc_player_DisplayVolume(player);
     return ret;
 }
 
@@ -2604,6 +2683,7 @@ vlc_player_aout_IncrementVolume(vlc_player_t *player, float volume,
     int ret = aout_VolumeUpdate(aout, volume, result);
     vlc_object_release(aout);
 
+    vlc_player_DisplayVolume(player);
     return ret;
 }
 
@@ -2628,6 +2708,10 @@ vlc_player_aout_Mute(vlc_player_t *player, bool mute)
     int ret = aout_MuteSet (aout, mute);
     vlc_object_release(aout);
 
+    if (mute)
+        vlc_player_vout_OSDIcon(player, OSD_MUTE_ICON);
+    else
+        vlc_player_DisplayVolume(player);
     return ret;
 }
 
