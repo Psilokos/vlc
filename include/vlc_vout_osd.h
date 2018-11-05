@@ -71,10 +71,29 @@ VLC_API void vout_OSDText( vout_thread_t *vout, int channel, int position, vlc_t
  * \param vout The vout on which the message will be displayed
  * \param channel Subpicture channel
  * \param format printf style formatting
+ * \param args format argument list
  *
  * Provided for convenience.
  */
-VLC_API void vout_OSDMessage( vout_thread_t *, int, const char *, ... ) VLC_FORMAT( 3, 4 );
+VLC_API void vout_OSDMessageVA(vout_thread_t *, int, const char *, va_list *);
+
+/**
+ * \brief Write an informative message at the default location,
+ *        for the default duration and only if the OSD option is enabled.
+ * \param vout The vout on which the message will be displayed
+ * \param channel Subpicture channel
+ * \param format printf style formatting
+ *
+ * Provided for convenience.
+ */
+static inline void
+vout_OSDMesage(vout_thread_t *vout, int channel, const char *format, ...) VLC_FORMAT(3, 4)
+{
+    va_list args;
+    va_start(args, format);
+    vout_OSDMessageVA(vout, channel, format, &args);
+    va_end(args);
+}
 
 /**
  * Display a slider on the video output.

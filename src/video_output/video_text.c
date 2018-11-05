@@ -144,18 +144,14 @@ void vout_OSDText(vout_thread_t *vout, int channel,
     vout_PutSubpicture(vout, subpic);
 }
 
-void vout_OSDMessage(vout_thread_t *vout, int channel, const char *format, ...)
+void vout_OSDMessageVA(vout_thread_t *vout, int channel,
+                       const char *format, va_list *args)
 {
-    va_list args;
-    va_start(args, format);
-
     char *string;
-    if (vasprintf(&string, format, args) != -1) {
+    if (vasprintf(&string, format, *args) != -1) {
         vout_OSDText(vout, channel,
                      SUBPICTURE_ALIGN_TOP|SUBPICTURE_ALIGN_RIGHT, VLC_TICK_FROM_SEC(1),
                      string);
         free(string);
     }
-    va_end(args);
 }
-
