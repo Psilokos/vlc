@@ -31,4 +31,29 @@ vlc_playlist_PlayerInit(vlc_playlist_t *playlist, vlc_object_t *parent);
 void
 vlc_playlist_PlayerDestroy(vlc_playlist_t *playlist);
 
+// FIXME ugly shit
+
+typedef struct vlc_player_t vlc_player_t;
+
+/**
+ * OSD mode
+ */
+enum vlc_player_osd
+{
+    VLC_PLAYER_OSD_TEXT,
+    VLC_PLAYER_OSD_ICON,
+    VLC_PLAYER_OSD_SLIDER,
+};
+
+#ifndef TEST_PLAYLIST
+void
+vlc_player_vout_OSDAction(vlc_player_t *player, vout_thread_t *vout,
+                          enum vlc_player_osd osd_mode, ...);
+#else
+# define vlc_player_vout_OSDAction(...)
+#endif
+
+#define vlc_playlist_PlayerOSDMessage(playlist, fmt...) \
+    vlc_player_vout_OSDAction(playlist->player, NULL, VLC_PLAYER_OSD_TEXT, fmt)
+
 #endif
