@@ -647,8 +647,8 @@ vlc_player_OpenNextMedia(vlc_player_t *player)
     int ret = VLC_SUCCESS;
     if (player->releasing_media)
     {
-        assert(player->media);
-        input_item_Release(player->media);
+        if (player->media)
+            input_item_Release(player->media);
         player->media = NULL;
         player->releasing_media = false;
     }
