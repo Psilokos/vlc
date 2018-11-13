@@ -1606,6 +1606,18 @@ VLC_API const struct vlc_player_track *
 vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
 
 /**
+ * Get the selected track from an ES category
+ *
+ * @param player locked player instance
+ * @param cat VIDEO_ES, AUDIO_ES or SPU_ES
+ * @return a valid player track or NULL (if none was selected or if the track
+ * was terminated by the playback thread)
+ */
+VLC_API const struct vlc_player_track *
+vlc_player_GetSelectedTrack(vlc_player_t *player,
+                            enum es_format_category_e cat);
+
+/**
  * Select a track from an ES identifier
  *
  * @note A successful call will trigger the
@@ -1617,6 +1629,14 @@ vlc_player_GetTrack(vlc_player_t *player, vlc_es_id_t *es_id);
  */
 VLC_API void
 vlc_player_SelectTrack(vlc_player_t *player, vlc_es_id_t *es_id);
+
+VLC_API void
+vlc_player_SelectPrevTrack(vlc_player_t *player,
+                           enum es_format_category_e cat);
+
+VLC_API void
+vlc_player_SelectNextTrack(vlc_player_t *player,
+                           enum es_format_category_e cat);
 
 /**
  * Unselect a track from an ES identifier
@@ -1648,6 +1668,9 @@ vlc_player_UnselectTrackCategory(vlc_player_t *player,
             vlc_player_UnselectTrack(player, track->es_id);
     }
 }
+
+VLC_API void
+vlc_player_ToggleSubtitle(vlc_player_t *player);
 
 /**
  * Restart a track from an ES identifier
@@ -1770,6 +1793,22 @@ vlc_player_GetProgram(vlc_player_t *player, int group_id);
  */
 VLC_API void
 vlc_player_SelectProgram(vlc_player_t *player, int group_id);
+
+/**
+ * Select the previous program
+ *
+ * @param player locked player instance
+ */
+VLC_API void
+vlc_player_SelectPrevProgram(vlc_player_t *player);
+
+/**
+ * Select the next program
+ *
+ * @param player locked player instance
+ */
+VLC_API void
+vlc_player_SelectNextProgram(vlc_player_t *player);
 
 /**
  * Check if the media has a teletext menu
@@ -2155,12 +2194,24 @@ vlc_player_SetAudioDelay(vlc_player_t *player, vlc_tick_t delay,
 /**
  * Get the subtitle delay for the current media
  *
- * @see vlc_player_cbs.on_audio_delay_changed
+ * @see vlc_player_cbs.on_subtitle_delay_changed
  *
  * @param player locked player instance
  */
 VLC_API vlc_tick_t
 vlc_player_GetSubtitleDelay(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncMarkAudio(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncMarkSubtitle(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncApply(vlc_player_t *player);
+
+VLC_API void
+vlc_player_SubtitleSyncReset(vlc_player_t *player);
 
 /**
  * Set the subtitle delay for the current media
@@ -2351,6 +2402,9 @@ vlc_player_aout_ToggleMute(vlc_player_t *player)
 VLC_API int
 vlc_player_aout_EnableFilter(vlc_player_t *player, const char *name, bool add);
 
+VLC_API int
+vlc_player_aout_NextDevice(vlc_player_t *player);
+
 /**
  * Get and hold the main video output
  *
@@ -2492,6 +2546,12 @@ vlc_player_vout_ToggleWallpaperMode(vlc_player_t *player)
     vlc_player_vout_SetWallpaperModeEnabled(player,
         !vlc_player_vout_IsWallpaperModeEnabled(player));
 }
+
+VLC_API void
+vlc_player_vout_Snapshot(vlc_player_t *player);
+
+VLC_API void
+vlc_player_vout_DisplayPosition(vlc_player_t *player);
 
 /** @} */
 #endif
