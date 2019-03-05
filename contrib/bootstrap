@@ -52,12 +52,6 @@ AD_CLAUSES=
 WITH_OPTIMIZATION="1"
 ENABLE_PDB=
 
-if test ! -f "../../contrib/src/main.mak"
-then
-	echo "$0 must be run from a subdirectory"
-	exit 1
-fi
-
 while test -n "$1"
 do
 	case "$1" in
@@ -387,10 +381,11 @@ esac
 #
 # Results output
 #
-echo TOPSRC = .. >> Makefile
-echo TOPSRC_BUILT = ../.. >> Makefile
-echo TOPDST = .. >> Makefile
+BOOTSTRAP_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
+echo TOPSRC = $BOOTSTRAP_PATH >> Makefile
+echo TOPSRC_BUILT = $BOOTSTRAP_PATH >> Makefile
+echo TOPDST = . >> Makefile
 echo include $\(TOPSRC\)/src/main.mak >> Makefile
 echo "Bootstrap completed."
 make help
-mkdir -p ../../contrib/tarballs || exit $?
+mkdir -p $BOOTSTRAP_PATH/tarballs || exit $?
