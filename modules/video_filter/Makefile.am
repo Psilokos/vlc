@@ -49,6 +49,8 @@ libpuzzle_plugin_la_SOURCES = \
 	video_filter/puzzle_mgt.c video_filter/puzzle_mgt.h \
 	video_filter/puzzle_pce.c video_filter/puzzle_pce.h
 libpuzzle_plugin_la_LIBADD = $(LIBM)
+libravu_plugin_la_SOURCES = video_filter/ravu.c
+libravu_plugin_la_LIBADD = $(LIBM)
 libripple_plugin_la_SOURCES = video_filter/ripple.c
 libripple_plugin_la_LIBADD = $(LIBM)
 librotate_plugin_la_SOURCES = video_filter/rotate.c
@@ -89,6 +91,7 @@ video_filter_LTLIBRARIES = \
 	libmotiondetect_plugin.la \
 	libposterize_plugin.la \
 	libpsychedelic_plugin.la \
+	libravu_plugin.la \
 	libripple_plugin.la \
 	libscale_plugin.la \
 	libscene_plugin.la \
