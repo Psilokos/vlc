@@ -329,6 +329,10 @@ static int VoutDisplayCreateRender(vout_display_t *vd)
     msg_Dbg(vd, "A filter to adapt decoder %4.4s to display %4.4s is needed",
             (const char *)&v_src.i_chroma, (const char *)&v_dst.i_chroma);
 
+    msg_Info(vd, "adapt dec to disp (%dx%d => %dx%d)",
+             v_src.i_visible_width, v_src.i_visible_height,
+             v_dst.i_visible_width, v_dst.i_visible_height);
+
     /* */
     es_format_t src;
     es_format_InitFromVideo(&src, &v_src);
@@ -401,6 +405,7 @@ picture_pool_t *vout_GetPool(vout_display_t *vd, unsigned count)
     if (vd->pool != NULL)
         return vd->pool(vd, count);
 
+    msg_Info(vd, "retrieving display pool of %dx%d", vd->fmt.i_visible_width, vd->fmt.i_visible_height);
     if (osys->pool == NULL)
         osys->pool = picture_pool_NewFromFormat(&vd->fmt, count);
     return osys->pool;
@@ -776,6 +781,8 @@ vout_display_t *vout_display_New(vlc_object_t *parent,
     vlc_video_context *video_context = osys->video_context.device ?
         &osys->video_context : NULL;
 
+    msg_Info(vd, "loading vout display module (%dx%d)",
+             vd->source.i_visible_width, vd->source.i_visible_height);
     if (vlc_module_load(vd, "vout display", module, module && *module != '\0',
                         vout_display_start, vd, &osys->cfg, &vd->fmt,
                         video_context) == NULL)
