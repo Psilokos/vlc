@@ -798,6 +798,11 @@ static void ThreadChangeFilters(vout_thread_t *vout,
         es_format_InitFromVideo(&fmt_target, source ? source : &vout->p->filter.format);
     else
         es_format_InitFromVideo(&fmt_target, &vout->p->display->source);
+    msg_Info(vout, "creating filter chain from %dx%d (%4.4s) to %dx%d (%4.4s)",
+             fmt_origin.video.i_visible_width, fmt_origin.video.i_visible_height,
+             (char const *)&fmt_origin.video.i_chroma,
+             fmt_target.video.i_visible_width, fmt_target.video.i_visible_height,
+             (char const *)&fmt_target.video.i_chroma);
 
     const es_format_t *p_fmt_current = &fmt_origin;
 
@@ -806,6 +811,11 @@ static void ThreadChangeFilters(vout_thread_t *vout,
                                          &array_interactive;
         filter_chain_t *chain = a == 0 ? vout->p->filter.chain_static :
                                          vout->p->filter.chain_interactive;
+
+        msg_Info(vout, "chain %s current fmt %dx%d (%4.4s)",
+                 a == 0 ? "static" : "interactive",
+                 p_fmt_current->video.i_visible_width, p_fmt_current->video.i_visible_height,
+                 (char const *)&p_fmt_current->video.i_chroma);
 
         filter_chain_Reset(chain, p_fmt_current, p_fmt_current);
         for (size_t i = 0; i < vlc_array_count(array); i++) {
@@ -827,6 +837,12 @@ static void ThreadChangeFilters(vout_thread_t *vout,
         p_fmt_current = filter_chain_GetFmtOut(chain);
         vlc_array_clear(array);
     }
+
+    msg_Info(vout, "filter chains instantiated: current = %dx%d (%4.4s) target = %dx%d (%4.4s)",
+             p_fmt_current->video.i_visible_width, p_fmt_current->video.i_visible_height,
+             (char const *)&p_fmt_current->video.i_chroma,
+             fmt_target.video.i_visible_width, fmt_target.video.i_visible_height,
+             (char const *)&fmt_target.video.i_chroma);
 
     if (!es_format_IsSimilar(p_fmt_current, &fmt_target)) {
         msg_Dbg(vout, "Adding a filter to compensate for format changes");
@@ -1914,6 +1930,8 @@ int vout_Request(const vout_configuration_t *cfg, input_thread_t *input)
         };
 
         VoutGetDisplayCfg(vout, &sys->display_cfg);
+        msg_Info(vout, "vout->p->display_cfg %dx%d",
+                 sys->display_cfg.display.width, sys->display_cfg.display.height);
         vout_SizeWindow(vout, &wcfg.width, &wcfg.height);
 
         if (vout_window_Enable(sys->display_cfg.window, &wcfg)) {
