@@ -1679,7 +1679,8 @@ vlc_module_begin ()
         change_safe ()
     add_bool( "autoscale", true, AUTOSCALE_TEXT, AUTOSCALE_LONGTEXT, false )
         change_safe ()
-    add_obsolete_float( "scale" ) /* since 3.0.0 */
+    add_float( "scale", 1., "Custom scale of the vout", "video output upscaling / downscaling", true )
+        change_safe()
     add_string( "monitor-par", NULL,
                 MASPECT_RATIO_TEXT, MASPECT_RATIO_LONGTEXT, true )
     add_string( "custom-aspect-ratios", NULL, CUSTOM_ASPECT_RATIOS_TEXT,
