@@ -172,6 +172,9 @@ void vout_CreateVars( vout_thread_t *p_vout )
     var_Create( p_vout, "zoom", VLC_VAR_FLOAT | VLC_VAR_ISCOMMAND |
                 VLC_VAR_DOINHERIT );
     var_Change( p_vout, "zoom", VLC_VAR_SETTEXT, _("Zoom") );
+
+    var_Create( p_vout, "scale", VLC_VAR_FLOAT | VLC_VAR_DOINHERIT );
+
     for( size_t i = 0; i < ARRAY_SIZE(p_zoom_values); i++ )
     {
         val.f_float = p_zoom_values[i].f_value;
