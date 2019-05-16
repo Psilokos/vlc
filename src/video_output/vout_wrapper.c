@@ -98,7 +98,8 @@ int vout_OpenWrapper(vout_thread_t *vout,
     const char *modlist;
     char *modlistbuf = NULL;
 
-    msg_Dbg(vout, "Opening vout display wrapper");
+    msg_Info(vout, "Opening vout display wrapper with cfg %dx%d",
+             cfg->display.width, cfg->display.height);
 
     if (splitter_name == NULL)
         modlist = modlistbuf = var_InheritString(vout, "vout");
@@ -144,11 +145,14 @@ int vout_OpenWrapper(vout_thread_t *vout,
         picture_pool_GetSize(display_pool) >= reserved_picture + decoder_picture) {
         sys->dpb_size     = picture_pool_GetSize(display_pool) - reserved_picture;
         sys->decoder_pool = display_pool;
+        msg_Info(vout, "decoder pool is display pool");
     } else {
         sys->decoder_pool = decoder_pool =
             picture_pool_NewFromFormat(&vout->p->original,
                                        __MAX(VOUT_MAX_PICTURES,
                                              reserved_picture + decoder_picture - DISPLAY_PICTURE_COUNT));
+        msg_Info(vout, "decoder pool is system memory with format %dx%d",
+                 vout->p->original.i_visible_width, vout->p->original.i_visible_height);
         if (!sys->decoder_pool)
             goto error;
         if (allow_dr) {
