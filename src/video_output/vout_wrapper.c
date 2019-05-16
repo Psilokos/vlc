@@ -64,6 +64,29 @@ static void VoutDisplayEvent(vout_display_t *vd, int event, va_list args)
 /*****************************************************************************
  *
  *****************************************************************************/
+static inline void
+ScaleVideoOutput(vout_thread_t *vout, video_format_t *fmt)
+{
+    float scale_factor = var_GetFloat(vout, "scale");
+    if (scale_factor == 1.f)
+        return;
+
+    int new_visible_width = roundf(fmt->i_visible_width * scale_factor);
+    int new_visible_height = roundf(fmt->i_visible_height * scale_factor);
+
+    msg_Dbg(vout, "scaling video output from %dx%d to %dx%d (x%.3f)",
+             fmt->i_visible_width, fmt->i_visible_height,
+             new_visible_width, new_visible_height,
+             scale_factor);
+
+    int padding_x = fmt->i_width - fmt->i_visible_width;
+    int padding_y = fmt->i_height - fmt->i_visible_height;
+    fmt->i_visible_width = new_visible_width;
+    fmt->i_visible_height = new_visible_height;
+    fmt->i_width = fmt->i_visible_width + padding_x;
+    fmt->i_height = fmt->i_visible_height + padding_y;
+}
+
 int vout_OpenWrapper(vout_thread_t *vout,
                      const char *splitter_name, const vout_display_cfg_t *cfg)
 {
@@ -82,7 +105,10 @@ int vout_OpenWrapper(vout_thread_t *vout,
     else
         modlist = "splitter,none";
 
-    vd = vout_display_New(VLC_OBJECT(vout), &vout->p->original, cfg, modlist,
+    video_format_t source;
+    video_format_Copy(&source, &vout->p->original);
+    ScaleVideoOutput(vout, &source);
+    vd = vout_display_New(VLC_OBJECT(vout), &source, cfg, modlist,
                           &owner);
     free(modlistbuf);
 
@@ -92,7 +118,7 @@ int vout_OpenWrapper(vout_thread_t *vout,
     sys->decoder_pool = NULL;
     sys->display_pool = NULL;
 
-    const bool use_dr = !vout_IsDisplayFiltered(vd);
+    const bool use_dr = !vout_IsDisplayFiltered(vd) && var_GetFloat(vout, "scale") == 1.f;
     const bool allow_dr = !vd->info.has_pictures_invalid && !vd->info.is_slow && use_dr;
     const unsigned private_picture  = 4; /* XXX 3 for filter, 1 for SPU */
     const unsigned decoder_picture  = 1 + sys->dpb_size;
@@ -120,7 +146,7 @@ int vout_OpenWrapper(vout_thread_t *vout,
         sys->decoder_pool = display_pool;
     } else {
         sys->decoder_pool = decoder_pool =
-            picture_pool_NewFromFormat(&vd->source,
+            picture_pool_NewFromFormat(&vout->p->original,
                                        __MAX(VOUT_MAX_PICTURES,
                                              reserved_picture + decoder_picture - DISPLAY_PICTURE_COUNT));
         if (!sys->decoder_pool)
