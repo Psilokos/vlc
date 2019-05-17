@@ -8,7 +8,6 @@
 #include <vlc_plugin.h>
 
 #define MTX_STRIDE(stride)  ((stride) / sizeof(float))
-#define ROUND2(x, n)        (((x) + (1LL << ((n) - 1))) >> (n))
 
 struct filter_sys
 {
@@ -21,11 +20,9 @@ struct filter_sys
     unsigned height;
 };
 
-struct vec3i64 { int64_t a; int64_t b; int64_t c; };
-struct vec3f   { float   a; float   b; float   c; };
-
-struct vec4u8 { uint8_t a; uint8_t b; uint8_t c; uint8_t d; };
+struct vec3f  { float   a; float   b; float   c;            };
 struct vec4f  { float   a; float   b; float   c; float   d; };
+struct vec4u8 { uint8_t a; uint8_t b; uint8_t c; uint8_t d; };
 
 /* FIXME:
  *  - 1 memcpy of X times stride
@@ -2313,164 +2310,81 @@ gather4u8(float const *mtx, int const x, int const y, ptrdiff_t const stride)
 #define LOG2_MAXDIV 4
 
 static inline void
-calc_abd_u8(struct vec3i64 *abd,
-            int64_t const gx, int64_t const gy, float const factor_f)
-{
-    int64_t const factor = factor_f * (1LL << (N + LOG2_MAXDIV));
-    abd->a += ROUND2(gx * gx, N + LOG2_MAXDIV) * factor;
-    abd->b += ROUND2(gx * gy, N + LOG2_MAXDIV) * factor;
-    abd->c += ROUND2(gy * gy, N + LOG2_MAXDIV) * factor;
-}
-
-static inline void
-calc_abd_f(struct vec3f *abd,
-           float const gx, float const gy, float const factor)
+calc_abd(struct vec3f *abd,
+         float const gx, float const gy, float const factor)
 {
     abd->a += gx * gx * factor;
     abd->b += gx * gy * factor;
     abd->c += gy * gy * factor;
 }
 
-static inline uint8_t
-log2u(uint32_t x)
+static inline void
+prep_pixel_buffer(uint8_t pixels[static 6 * 6],
+                  float const *imtx, ptrdiff_t const stride)
 {
-    uint8_t base = 31 - __builtin_clz(x);
-    return base + (__builtin_ctz(x) != base);
+    /* left */
+    struct vec4u8 const g0 = gather4u8(imtx, -2, -2, stride);
+    struct vec4u8 const g1 = gather4u8(imtx, -2,  0, stride);
+    struct vec4u8 const g2 = gather4u8(imtx, -2, +2, stride);
+    /* middle */
+    struct vec4u8 const g3 = gather4u8(imtx,  0, -2, stride);
+    struct vec4u8 const g4 = gather4u8(imtx,  0,  0, stride);
+    struct vec4u8 const g5 = gather4u8(imtx,  0, +2, stride);
+    /* right */
+    struct vec4u8 const g6 = gather4u8(imtx, +2, -2, stride);
+    struct vec4u8 const g7 = gather4u8(imtx, +2,  0, stride);
+    struct vec4u8 const g8 = gather4u8(imtx, +2, +2, stride);
+
+    pixels[0 * 8 + 0] = g0.d;    pixels[2 * 8 + 0] = g1.d;    pixels[4 * 8 + 0] = g2.d;
+    pixels[0 * 8 + 1] = g0.c;    pixels[2 * 8 + 1] = g1.c;    pixels[4 * 8 + 1] = g2.c;
+    pixels[0 * 8 + 2] = g3.d;    pixels[2 * 8 + 2] = g4.d;    pixels[4 * 8 + 2] = g5.d;
+    pixels[0 * 8 + 3] = g3.c;    pixels[2 * 8 + 3] = g4.c;    pixels[4 * 8 + 3] = g5.c;
+    pixels[0 * 8 + 4] = g6.d;    pixels[2 * 8 + 4] = g7.d;    pixels[4 * 8 + 4] = g8.d;
+    pixels[0 * 8 + 5] = g6.c;    pixels[2 * 8 + 5] = g7.c;    pixels[4 * 8 + 5] = g8.c;
+    pixels[1 * 8 + 0] = g0.a;    pixels[3 * 8 + 0] = g1.a;    pixels[5 * 8 + 0] = g2.a;
+    pixels[1 * 8 + 1] = g0.b;    pixels[3 * 8 + 1] = g1.b;    pixels[5 * 8 + 1] = g2.b;
+    pixels[1 * 8 + 2] = g3.a;    pixels[3 * 8 + 2] = g4.a;    pixels[5 * 8 + 2] = g5.a;
+    pixels[1 * 8 + 3] = g3.b;    pixels[3 * 8 + 3] = g4.b;    pixels[5 * 8 + 3] = g5.b;
+    pixels[1 * 8 + 4] = g6.a;    pixels[3 * 8 + 4] = g7.a;    pixels[5 * 8 + 4] = g8.a;
+    pixels[1 * 8 + 5] = g6.b;    pixels[3 * 8 + 5] = g7.b;    pixels[5 * 8 + 5] = g8.b;
 }
 
-static inline uint8_t
-log2ul(uint64_t x)
-{
-    uint8_t base = 63 - __builtin_clzl(x);
-    return base + (__builtin_ctzl(x) != base);
-}
-
-static inline int32_t
-idiv32(int32_t num, uint32_t den)
-{
-    uint32_t m = (1U << (N + LOG2_MAXDIV)) / den + 1;
-    assert(num == 0 || log2u(abs(num * m)) <= 30);
-    return num * m;
-}
-
-static inline uint64_t
-udiv64(uint64_t num, uint64_t den, int shift)
-{
-    uint64_t m = (1UL << shift) / den + 1;
-    assert(num == 0 || log2ul(num * m) <= 63);
-    return num * m;
-}
+extern void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
+                                        uint32_t *aptr,
+                                        int32_t *bptr,
+                                        uint32_t *cptr);
 
 static inline void
 Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
               ptrdiff_t const stride)
 {
+    uint8_t pixels[6 * 8];
     for (unsigned y = 0; y < height; ++y)
     {
         for (unsigned x = 0; x < width; ++x)
         {
-            /* left */
-            struct vec4u8 g0 = gather4u8(imtx + x, -2, -2, stride);
-            struct vec4u8 g1 = gather4u8(imtx + x, -2,  0, stride);
-            struct vec4u8 g2 = gather4u8(imtx + x, -2, +2, stride);
-            /* middle */
-            struct vec4u8 g3 = gather4u8(imtx + x,  0, -2, stride);
-            struct vec4u8 g4 = gather4u8(imtx + x,  0,  0, stride);
-            struct vec4u8 g5 = gather4u8(imtx + x,  0, +2, stride);
-            /* right */
-            struct vec4u8 g6 = gather4u8(imtx + x, +2, -2, stride);
-            struct vec4u8 g7 = gather4u8(imtx + x, +2,  0, stride);
-            struct vec4u8 g8 = gather4u8(imtx + x, +2, +2, stride);
-
-            struct vec3i64 abd = {0};
-            int32_t gx, gy;
-
-            /*
-             * maxval = 4*2*FF + 8*A*FF + 4*12*FF = 9F60
-             * N = log2(maxval) => 16
-             */
-
-            gx = idiv32(g3.a - g0.a, 2);
-            gy = idiv32(g1.c - g0.c, 2);
-            calc_abd_u8(&abd, gx, gy, 0.04792235409415088);
-
-            gx = idiv32(g4.d - g1.d, 2);
-            gy = idiv32(-g2.c + 8 * g1.b - 8 * g0.b + g0.c, 12);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(g4.a - g1.a, 2);
-            gy = idiv32(-g2.b + 8 * g2.c - 8 * g1.c + g0.b, 12);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(g5.d - g2.d, 2);
-            gy = idiv32(g2.b - g1.b, 2);
-            calc_abd_u8(&abd, gx, gy, 0.04792235409415088);
-
-            gx = idiv32(-g6.a + 8 * g3.b - 8 * g0.b + g0.a, 12);
-            gy = idiv32(g4.d - g3.d, 2);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(-g7.d + 8 * g4.c - 8 * g1.c + g1.d, 12);
-            gy = idiv32(-g5.d + 8 * g4.a - 8 * g3.a + g3.d, 12);
-            calc_abd_u8(&abd, gx, gy, 0.07901060453704994);
-
-            gx = idiv32(-g7.a + 8 * g4.b - 8 * g1.b + g1.a, 12);
-            gy = idiv32(-g5.a + 8 * g5.d - 8 * g4.d + g3.a, 12);
-            calc_abd_u8(&abd, gx, gy, 0.07901060453704994);
-
-            gx = idiv32(-g8.d + 8 * g5.c - 8 * g2.c + g2.d, 12);
-            gy = idiv32(g5.a - g4.a, 2);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(-g6.b + 8 * g6.a - 8 * g3.a + g0.b, 12);
-            gy = idiv32(g4.c - g3.c, 2);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(-g7.c + 8 * g7.d - 8 * g4.d + g1.c, 12);
-            gy = idiv32(-g5.c + 8 * g4.b - 8 * g3.b + g3.c, 12);
-            calc_abd_u8(&abd, gx, gy, 0.07901060453704994);
-
-            gx = idiv32(-g7.b + 8 * g7.a - 8 * g4.a + g1.b, 12);
-            gy = idiv32(-g5.b + 8 * g5.c - 8 * g4.c + g3.b, 12);
-            calc_abd_u8(&abd, gx, gy, 0.07901060453704994);
-
-            gx = idiv32(-g8.c + 8 * g8.d - 8 * g5.d + g2.c, 12);
-            gy = idiv32(g5.b - g4.b, 2);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(g6.b - g3.b, 2);
-            gy = idiv32(g7.d - g6.d, 2);
-            calc_abd_u8(&abd, gx, gy, 0.04792235409415088);
-
-            gx = idiv32(g7.c - g4.c, 2);
-            gy = idiv32(-g8.d + 8 * g7.a - 8 * g6.a + g6.d, 12);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(g7.b - g4.b, 2);
-            gy = idiv32(-g8.a + 8 * g8.d - 8 * g7.d + g6.a, 12);
-            calc_abd_u8(&abd, gx, gy, 0.06153352068439959);
-
-            gx = idiv32(g8.c - g5.c, 2);
-            gy = idiv32(g8.a - g7.a, 2);
-            calc_abd_u8(&abd, gx, gy, 0.04792235409415088);
-
-            float a = ROUND2(abd.a, 2 * (N + LOG2_MAXDIV)) / (255.f * 255.f);
-            float b = ROUND2(abd.b, 2 * (N + LOG2_MAXDIV)) / (255.f * 255.f);
-            float d = ROUND2(abd.c, 2 * (N + LOG2_MAXDIV)) / (255.f * 255.f);
-
+            uint32_t a_;
+            int32_t b_;
+            uint32_t d_;
+            prep_pixel_buffer(pixels, imtx + x, stride);
 #if 0
-            /* a and d cannot be signed, neither b_squared */
-            uint32_t T = a + d;         ///< max 17 bits
-            int32_t D = a * d - b * b; ///< max 31 unsigned bits + 1 sign bit
- 
-            uint64_t Tsq = T * T;       ///< max 33-bit
-            int64_t tmp = udiv64(Tsq, 4, 35) - D * (1LL << 35); ///< 35 = log2(Tsq) + log2(4)
-
-            uint16_t delta = roundf(sqrtf(tmp > 0 ? tmp : 0)); ///< max 16 bits
-            fprintf(stderr, "tmp => %lu - %lld = %lu\n", udiv64(Tsq, 4, 35), D * (1LL << 35), ROUND2(tmp, 35));
-            fprintf(stderr, "\n");
+            for (int i = 0; i < 6; ++i)
+            {
+                for (int j = 0; j < 6; ++j)
+                    if (i == 2 && j == 2)
+                        fprintf(stderr, "xx ");
+                    else
+                        fprintf(stderr, "%2X ", pixels[i * 8 + j]);
+                fprintf(stderr, "\n");
+            }
 #endif
+            vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
+
+            float a = a_ / (255.f * 255.f);
+            float b = b_ / (255.f * 255.f);
+            float d = d_ / (255.f * 255.f);
+            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -2494,48 +2408,46 @@ Filter_pass_0(float *omtx, float const *imtx,
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
 
-            struct vec4f g0f = gather4(imtx + x, -2, -2, stride);
-            struct vec4f g1f = gather4(imtx + x, -2,  0, stride);
-            struct vec4f g2f = gather4(imtx + x, -2, +2, stride);
-            /* middle */
-            struct vec4f g3f = gather4(imtx + x,  0, -2, stride);
-            struct vec4f g4f = gather4(imtx + x,  0,  0, stride);
-            struct vec4f g5f = gather4(imtx + x,  0, +2, stride);
-            /* right */
-            struct vec4f g6f = gather4(imtx + x, +2, -2, stride);
-            struct vec4f g7f = gather4(imtx + x, +2,  0, stride);
-            struct vec4f g8f = gather4(imtx + x, +2, +2, stride);
+            struct vec4f g0 = gather4(imtx + x, -2, -2, stride);
+            struct vec4f g1 = gather4(imtx + x, -2,  0, stride);
+            struct vec4f g2 = gather4(imtx + x, -2, +2, stride);
+            struct vec4f g3 = gather4(imtx + x,  0, -2, stride);
+            struct vec4f g4 = gather4(imtx + x,  0,  0, stride);
+            struct vec4f g5 = gather4(imtx + x,  0, +2, stride);
+            struct vec4f g6 = gather4(imtx + x, +2, -2, stride);
+            struct vec4f g7 = gather4(imtx + x, +2,  0, stride);
+            struct vec4f g8 = gather4(imtx + x, +2, +2, stride);
 
             float res = .0f;
             struct vec4f w;
 
             w = lut_val(0, coord_y);
-            res += (g0f.d + g8f.b) * w.a;
-            res += (g0f.a + g8f.c) * w.b;
-            res += (g1f.d + g7f.b) * w.c;
-            res += (g1f.a + g7f.c) * w.d;
+            res += (g0.d + g8.b) * w.a;
+            res += (g0.a + g8.c) * w.b;
+            res += (g1.d + g7.b) * w.c;
+            res += (g1.a + g7.c) * w.d;
 
             w = lut_val(1, coord_y);
-            res += (g2f.d + g6f.b) * w.a;
-            res += (g2f.a + g6f.c) * w.b;
-            res += (g0f.c + g8f.a) * w.c;
-            res += (g0f.b + g8f.d) * w.d;
+            res += (g2.d + g6.b) * w.a;
+            res += (g2.a + g6.c) * w.b;
+            res += (g0.c + g8.a) * w.c;
+            res += (g0.b + g8.d) * w.d;
 
             w = lut_val(2, coord_y);
-            res += (g1f.c + g7f.a) * w.a;
-            res += (g1f.b + g7f.d) * w.b;
-            res += (g2f.c + g6f.a) * w.c;
-            res += (g2f.b + g6f.d) * w.d;
+            res += (g1.c + g7.a) * w.a;
+            res += (g1.b + g7.d) * w.b;
+            res += (g2.c + g6.a) * w.c;
+            res += (g2.b + g6.d) * w.d;
 
             w = lut_val(3, coord_y);
-            res += (g3f.d + g5f.b) * w.a;
-            res += (g3f.a + g5f.c) * w.b;
-            res += (g4f.d + g4f.b) * w.c;
-            res += (g4f.a + g4f.c) * w.d;
+            res += (g3.d + g5.b) * w.a;
+            res += (g3.a + g5.c) * w.b;
+            res += (g4.d + g4.b) * w.c;
+            res += (g4.a + g4.c) * w.d;
 
             w = lut_val(4, coord_y);
-            res += (g5f.d + g3f.b) * w.a;
-            res += (g5f.a + g3f.c) * w.b;
+            res += (g5.d + g3.b) * w.a;
+            res += (g5.a + g3.c) * w.b;
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
         }
@@ -2590,67 +2502,67 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
 
             gx = (g3.c - g3.a) / 2.f;
             gy = (g3.b - g3.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (g0.b - sample02) / 2.f;
             gy = (-g5.a + 8.f * g1.d - 8.f * g0.a + g3.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g5.d - sample03) / 2.0;
             gy = (-g1.b + 8.f * g5.a - 8.f * g3.b + g0.a) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g1.c - g1.a) / 2.0;
             gy = (g1.b - g1.d) / 2.0;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (-g4.d + 8.f * g0.c - 8.f * g0.a + g3.a) / 12.f;
             gy = (g0.b - g0.d) / 2.0;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-g2.d + 8.f * g4.a - 8.f * g3.b + sample02) / 12.f;
             gy = (-g1.c + 8.f * g5.d - 8.f * g3.c + g0.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g4.b + 8.f * g2.a - 8.f * g1.d + sample03) / 12.f;
             gy = (-g5.b + 8.f * g1.c - 8.f * g0.b + g3.c) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g2.b + 8.f * g5.c - 8.0 * g5.a + g1.a) / 12.f;
             gy = (g5.b - g5.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-sample31 + 8.f * g4.d - 8.f * g3.c + g0.a) / 12.f;
             gy = (g4.a - sample18) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-g4.c + 8.f * g2.d - 8.f * g0.b + g3.b) / 12.f;
             gy = (-g5.c + 8.f * g2.a - 8.f * g0.c + sample18) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g2.c + 8.f * g4.b - 8.f * g5.d + g1.d) / 12.f;
             gy = (-sample23 + 8.f * g5.c - 8.f * g4.a + g0.c) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-sample34 + 8.f * g2.b - 8.f * g1.c + g5.a) / 12.f;
             gy = (sample23 - g2.a) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (sample31 - g0.c) / 2.f;
             gy = (g2.d - sample24) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (g4.c - g4.a) / 2.f;
             gy = (-g2.b + 8.f * g4.b - 8.f * g4.d + sample24) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g2.c - g2.a) / 2.f;
             gy = (-sample29 + 8.f * g2.b - 8.f * g2.d + g4.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (sample34 - g5.c) / 2.f;
             gy = (sample29 - g4.b) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             float a = abd.a;
             float b = abd.b;
@@ -2763,67 +2675,67 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
 
             gx = (g0.c - g0.a) / 2.f;
             gy = (g0.b - g0.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (g3.b - sample02) / 2.f;
             gy = (-g2.a + 8.f * g4.d - 8.f * g3.a + g0.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g2.d - sample03) / 2.f;
             gy = (-g4.b + 8.f * g2.a - 8.f * g0.b + g3.a) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g4.c - g4.a) / 2.f;
             gy = (g4.b - g4.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (-g1.d + 8.f * g3.c - 8.f * g3.a + g0.a) / 12.f;
             gy = (g3.b - g3.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-g5.d + 8.f * g1.a - 8.f * g0.b + sample02) / 12.f;
             gy = (-g4.c + 8.f * g2.d - 8.f * g0.c + g3.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g1.b + 8.f * g5.a - 8.f * g4.d + sample03) / 12.f;
             gy = (-g2.b + 8.f * g4.c - 8.f * g3.b + g0.c) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g5.b + 8.f * g2.c - 8.f * g2.a + g4.a) / 12.f;
             gy = (g2.b - g2.d) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-sample31 + 8.f * g1.d - 8.f * g0.c + g3.a) / 12.f;
             gy = (g1.a - sample18) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (-g1.c + 8.f * g5.d - 8.f * g3.b + g0.b) / 12.f;
             gy = (-g2.c + 8.f * g5.a - 8.f * g3.c + sample18) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-g5.c + 8.f * g1.b - 8.f * g2.d + g4.d) / 12.f;
             gy = (-sample23 + 8.f * g2.c - 8.f * g1.a + g3.c) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.07901060453704994);
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
 
             gx = (-sample34 + 8.f * g5.b - 8.f * g4.c + g2.a) / 12.f;
             gy = (sample23 - g5.a) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (sample31 - g3.c) / 2.f;
             gy = (g5.d - sample24) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             gx = (g1.c - g1.a) / 2.f;
             gy = (-g5.b + 8.f * g1.b - 8.f * g1.d + sample24) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (g5.c - g5.a) / 2.f;
             gy = (-sample29 + 8.f * g5.b - 8.f * g5.d + g1.d) / 12.f;
-            calc_abd_f(&abd, gx, gy, 0.06153352068439959);
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
 
             gx = (sample34 - g2.c) / 2.f;
             gy = (sample29 - g1.b) / 2.f;
-            calc_abd_f(&abd, gx, gy, 0.04792235409415088);
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
             float a = abd.a;
             float b = abd.b;
@@ -3000,7 +2912,6 @@ Filter(filter_t *filter, picture_t *ipic)
     if (!opic)
         return NULL;
     picture_CopyProperties(opic, ipic);
-/* TODO init in filter_sys and reuse */
 
     unsigned const extw = sys->width + 5;
     float *input  = sys->input + 3 * extw + 2;
@@ -3023,16 +2934,17 @@ Filter(filter_t *filter, picture_t *ipic)
                       sys->width, sys->height,
                       extw * sizeof(float), opic->Y_PITCH);
 
-    upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
-    upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
 #if 0
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
     msg_Info(filter, "---------------------- END -------------------");
 #else
-    msg_Info(filter, "RAVU is alive and well my friend");
+    // msg_Info(filter, "RAVU is alive and well my friend");
 #endif
 
+    upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
+    upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
+ 
     picture_Release(ipic);
     return opic;
 }
