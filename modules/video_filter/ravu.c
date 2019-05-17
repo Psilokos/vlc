@@ -2,6 +2,9 @@
 # include "config.h"
 #endif
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <vlc_common.h>
 #include <vlc_filter.h>
 #include <vlc_picture.h>
@@ -18,6 +21,8 @@ struct filter_sys
 
     unsigned width;
     unsigned height;
+    
+    int fd;
 };
 
 struct vec3f { float a; float b; float c; };
@@ -2931,6 +2936,13 @@ Filter(filter_t *filter, picture_t *ipic)
     msg_Info(filter, "RAVU is alive and well my friend");
 #endif
 
+    for (int i = 0; i < opic->p[Y_PLANE].i_visible_lines; ++i)
+    {
+        for (int j = 0; j < opic->p[Y_PLANE].i_visible_pitch; ++j)
+            dprintf(sys->fd, "%x ", opic->Y_PIXELS[i * opic->Y_PITCH + j]);
+        dprintf(sys->fd, "\n");
+    }
+ 
     picture_Release(ipic);
     return opic;
 }
@@ -2940,6 +2952,7 @@ Close(vlc_object_t *obj)
 {
     filter_t *filter = (filter_t *)obj;
     struct filter_sys *sys = (struct filter_sys *)filter->p_sys;
+    close(sys->fd);
     free(sys->pass_2);
     free(sys->pass_1);
     free(sys->pass_0);
@@ -2965,6 +2978,13 @@ Open(vlc_object_t *obj)
     if (!sys)
         goto error;
     filter->p_sys = sys;
+
+    sys->fd = open("ravu-log.txt", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (sys->fd == -1)
+    {
+        msg_Err(filter, "cannot open log file");
+        goto error;
+    }
 
     int ret = VLC_SUCCESS;
 
