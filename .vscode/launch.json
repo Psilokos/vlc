@@ -1,0 +1,61 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "inputs": [
+        {
+            "description": "Build before launch",
+            "options": [ "Fast in WSL", "" ],
+            "default": "Fast in WSL",
+            "id": "taskBeforeDebug",
+            "type": "pickString"
+        }
+    ],
+    "configurations": [
+        {
+            "name": "VLC Launch (LLVM with PDB)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\bin\\.libs\\vlc.exe",
+            //"args": [ "--no-media-library", "E:\\samples\\vpx\\vp9_multires.mp4" ],
+            "args": [ "--no-media-library", "E:\\samples\\4k\\Bike_UHD_HLG_SEI_BT2020_Video18Mbps_TS20.ts", "--zoom=0.3", "--sub-source=logo" ],
+            "stopAtEntry": false,
+            //"cwd": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\src\\.libs",
+            "cwd": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb",
+            "environment": [
+                {
+                     "name": "VLC_PLUGIN_PATH",
+                     "value": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\modules"
+                },
+                {
+                    "name": "PATH",
+                    "value": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\lib\\.libs;C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\src\\.libs;C:\\msys64\\llvm-mingw\\bin;C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\local\\bin;C:\\msys64\\usr\\bin;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\downlevel"
+                }
+            ],
+            "externalConsole": true,
+            "preLaunchTask": "${input:taskBeforeDebug}"
+        },
+        {
+            "name": "D3D11 player (LLVM with PDB)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\bin\\.libs\\d3d11_player.exe",
+            "args": [ "E:\\samples\\vpx\\vp9_multires.mp4" ],
+            "stopAtEntry": false,
+            "cwd": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb",
+            "environment": [
+                {
+                     "name": "VLC_PLUGIN_PATH",
+                     "value": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\modules"
+                },
+                {
+                    "name": "PATH",
+                    "value": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\lib\\.libs;C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64\\src\\.libs;C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\downlevel"
+                }
+            ],
+            "externalConsole": true,
+            "preLaunchTask": "${input:taskBeforeDebug}"
+        }
+    ]
+}

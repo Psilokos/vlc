@@ -1,0 +1,99 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "inputs": [
+        // {
+        //     "description": "Path to MSYS2 shell binaries",
+        //     "options": [ "C:\\msys64" ],
+        //     "default": "C:\\msys64",
+        //     "id": "msysPath",
+        //     "type": "pickString"
+        // },
+        {
+            "description": "Build folder root",
+            "options": [ "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64", "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\win64.llvm-pdb\\win64", "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\win64.llvm-pdb2" ],
+            "default": "C:\\Users\\robux\\Documents\\Programs\\Videolabs\\build\\wsl.llvm-pdb\\win64",
+            "type": "pickString",
+            "id": "buildRoot"
+        }
+    ],
+    "tasks": [
+        {
+            "label": "Fast in WSL",
+            "type": "shell",
+            "command": "C:\\Windows\\System32\\bash.exe",
+            "options": {
+                "cwd": "${input:buildRoot}",
+                "env": {
+                    //"Path": "${input:buildRoot}\\tools\\build\\bin;${input:buildRoot}\\lib\\.libs;${input:buildRoot}\\src\\.libs;${input:msysPath}\\llvm-mingw\\bin;${input:msysPath}\\mingw64\\bin;${input:msysPath}\\usr\\local\\bin;${input:msysPath}\\usr\\bin;${env:Path}",
+                    //"Path": "${input:buildRoot}\\tools\\build\\bin;${input:buildRoot}\\lib\\.libs;${input:buildRoot}\\src\\.libs;${input:msysPath}\\llvm-mingw\\bin;${input:msysPath}\\usr\\local\\sbin;${input:msysPath}\\usr\\local\\bin;${input:msysPath}\\usr\\sbin;${input:msysPath}\\usr\\bin;${env:Path}",
+                    //
+                    "Path": "${input:buildRoot}\\tools\\build\\bin;${input:buildRoot}\\lib\\.libs;${input:buildRoot}\\src\\.libs;\\home\robux4\\llvm-mingw-20190504-ubuntu-16.04\\bin;${env:Path}",
+                    "VLC_PLUGIN_PATH": "${input:buildRoot}\\modules"
+                }
+            },
+            // "args": ["-c", "./compile -j10"],
+            "args": ["-c", "PATH=/usr/llvm-mingw/bin:/home/robux4/llvm-mingw-20190504-ubuntu-16.04/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make -j10 "],
+            // "args": ["-c", "PATH=/usr/llvm-mingw/bin:/home/robux4/llvm-mingw-20190504-ubuntu-16.04/bin:$PATH echo $PATH"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": {
+                "owner": "cpp",
+                "fileLocation": ["relative", "${workspaceFolder}"],
+                "pattern":[
+                    {
+                        "regexp": "^/mnt/c/Users/robux/Documents/Programs/Videolabs/vlc/(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+                        // The first match group matches the file name which is relative.
+                        "file": 1,
+                        // The second match group matches the line on which the problem occurred.
+                        "line": 2,
+                        // The third match group matches the column at which the problem occurred.
+                        "column": 3,
+                        // The fourth match group matches the problem's severity. Can be ignored. Then all problems are captured as errors.
+                        "severity": 4,
+                        // The fifth match group matches the message.
+                        "message": 5
+                    }
+                ]
+            },
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
+            "label": "Fast Build LLVM64",
+            "type": "shell",
+            "command": "C:\\msys64\\usr\\bin\\env.exe",
+            "options": {
+                "cwd": "${input:buildRoot}",
+                "env": {
+                    "Path": "${input:buildRoot}\\tools\\build\\bin;${input:msysPath}\\llvm-mingw-pdb-x86_64\\llvm-mingw\\bin;${input:msysPath}\\mingw64\\bin;${input:msysPath}\\usr\\local\\bin;${input:msysPath}\\usr\\bin;${env:Path}"
+                }
+            },
+            "args": ["MSYSTEM=MINGW64", "make.exe", "-j10"],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Build Error LLVM64",
+            "type": "shell",
+            "command": "C:\\msys64\\usr\\bin\\env.exe",
+            "options": {
+                "cwd": "${input:buildRoot}",
+                "env": {
+                    "Path": "${input:buildRoot}\\tools\\build\\bin;${input:msysPath}\\llvm-mingw\\bin;${input:msysPath}\\mingw64\\bin;${input:msysPath}\\usr\\local\\bin;${input:msysPath}\\usr\\bin;${env:Path}"
+                }
+            },
+            "args": ["V=1", "MSYSTEM=MINGW64", "make.exe", "-j1"],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}

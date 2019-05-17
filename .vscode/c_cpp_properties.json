@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/src/**",
+                "C:/Users/robux/Documents/Programs/Videolabs/build/wsl.llvm-pdb/win64",
+                "C:/Users/robux/Documents/Programs/Videolabs/build/wsl.llvm-pdb/contrib-win64/x86_64-w64-mingw32/include/**",
+                "C:/msys64/llvm-mingw/include/**",
+                "C:/msys64/llvm-mingw/generic-w64-mingw32/include/**",
+                "C:/msys64/llvm-mingw/lib/clang/9.0.0/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "HAVE_CONFIG_H",
+                "HAVE_DYNAMIC_PLUGINS",
+                "VLC_WINSTORE_APP=0",
+                "MODULE_STRING=1"
+            ],
+            "windowsSdkVersion": "10.0.17763.0",
+            "compilerPath": "C:/msys64/llvm-mingw/bin/clang-9.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "clang-x64"
+        }
+    ],
+    "version": 4
+}

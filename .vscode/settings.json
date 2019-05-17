@@ -1,0 +1,15 @@
+{
+    "files.exclude": {
+        "**/contrib/*-w64-*": true,
+        "**/contrib/contrib-win*": true,
+        "**/Makefile.in": true
+    },
+    "files.trimTrailingWhitespace": true,
+    "editor.fontFamily": "Consolas, 'Courier New', monospace",
+    "editor.fontSize": 13,
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "editor.tabCompletion": "on",
+    "files.associations": {
+        "*.h": "c"
+    }
+}
