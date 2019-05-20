@@ -4,6 +4,7 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <vlc_common.h>
 #include <vlc_filter.h>
@@ -23,6 +24,9 @@ struct filter_sys
     unsigned height;
     
     int fd;
+
+    struct timeval *tv_delta;
+    size_t num_tv_delta;
 };
 
 struct vec3f  { float   a; float   b; float   c;            };
@@ -2925,6 +2929,9 @@ Filter(filter_t *filter, picture_t *ipic)
     float *pass_1 = sys->pass_1 + 3 * extw + 2;
     float *pass_2 = sys->pass_2 + 3 * extw + 2;
 
+    struct timeval tv_start;
+    gettimeofday(&tv_start, NULL);
+
     Filter_prepare(sys->input, ipic->Y_PIXELS,
                    sys->width, sys->height,
                    extw * sizeof(float), ipic->Y_PITCH);
@@ -2939,6 +2946,9 @@ Filter(filter_t *filter, picture_t *ipic)
     Filter_pass_final(opic->Y_PIXELS, input, pass_0, pass_1, pass_2,
                       sys->width, sys->height,
                       extw * sizeof(float), opic->Y_PITCH);
+
+    struct timeval tv_end;
+    gettimeofday(&tv_end, NULL);
 
     for (int i = 0; i < opic->p[Y_PLANE].i_visible_lines; ++i)
     {
@@ -2957,7 +2967,25 @@ Filter(filter_t *filter, picture_t *ipic)
 
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
- 
+
+    if ((sys->num_tv_delta & 4095) == 0)
+    {
+        size_t const new_size =
+            (sys->num_tv_delta + 4096) * sizeof(struct timeval);
+        struct timeval *new_tv_delta = realloc(sys->tv_delta, new_size);
+        if (!sys->tv_delta)
+            goto error;
+        sys->tv_delta = new_tv_delta;
+    }
+
+    struct timeval tmp;
+    timersub(&tv_end, &tv_start, &tmp);
+    sys->tv_delta[sys->num_tv_delta++] = tmp;
+    goto ret;
+
+error:
+    msg_Err(filter, "benchmark allocation error");
+ret:
     picture_Release(ipic);
     return opic;
 }
@@ -2967,7 +2995,19 @@ Close(vlc_object_t *obj)
 {
     filter_t *filter = (filter_t *)obj;
     struct filter_sys *sys = (struct filter_sys *)filter->p_sys;
+
+    uint64_t total_delta = 0;
+    for (size_t i = 0; i < sys->num_tv_delta; ++i)
+        total_delta += (uint64_t)sys->tv_delta[i].tv_sec * 1000000
+            + sys->tv_delta[i].tv_usec;
+    if (total_delta > 0)
+        msg_Info(filter, "%lu micro-seconds per frame on average",
+                 total_delta / sys->num_tv_delta);
+    else
+        msg_Err(filter, "no benchmark record");
+
     close(sys->fd);
+    free(sys->tv_delta);
     free(sys->pass_2);
     free(sys->pass_1);
     free(sys->pass_0);
@@ -3006,6 +3046,10 @@ Open(vlc_object_t *obj)
     sys->pass_0 = malloc(extw * exth * sizeof(float)); if (!sys->pass_0) goto error;
     sys->pass_1 = malloc(extw * exth * sizeof(float)); if (!sys->pass_1) goto error;
     sys->pass_2 = malloc(extw * exth * sizeof(float)); if (!sys->pass_2) goto error;
+
+    sys->tv_delta = malloc(4096 * sizeof(struct timeval));
+    if (!sys->tv_delta)
+        goto error;
 
     sys->fd = open("ravu-log.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (sys->fd == -1)
