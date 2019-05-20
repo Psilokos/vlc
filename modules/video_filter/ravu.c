@@ -2214,12 +2214,16 @@ static inline void
 expand_matrix(float *mtx, unsigned const w, unsigned const h, ptrdiff_t const stride)
 {
     for (unsigned i = 0; i < h; ++i)
-        expand_line(mtx + (i + 2) * MTX_STRIDE(stride) + 2, w);
-    memcpy(mtx + 0 * MTX_STRIDE(stride), mtx + 2 * MTX_STRIDE(stride), stride);
-    memcpy(mtx + 1 * MTX_STRIDE(stride), mtx + 2 * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (2 + h + 0) * MTX_STRIDE(stride), mtx + (2 + h - 1) * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (2 + h + 1) * MTX_STRIDE(stride), mtx + (2 + h - 1) * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (2 + h + 2) * MTX_STRIDE(stride), mtx + (2 + h - 1) * MTX_STRIDE(stride), stride);
+        expand_line(mtx + (i + 3) * MTX_STRIDE(stride) + 2, w);
+    memcpy(mtx + 0 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
+    memcpy(mtx + 1 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
+    memcpy(mtx + 2 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
+    memcpy(mtx + (3 + h + 0) * MTX_STRIDE(stride),
+           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
+    memcpy(mtx + (3 + h + 1) * MTX_STRIDE(stride),
+           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
+    memcpy(mtx + (3 + h + 2) * MTX_STRIDE(stride),
+           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
 }
 
 static inline void
@@ -2231,7 +2235,7 @@ Filter_prepare(float *buf, uint8_t *plane,
         for (unsigned j = 0; j < w; ++j)
         {
             float val = plane[i * plane_stride + j] / 255.f;
-            buf[2 + (i + 2) * MTX_STRIDE(buf_stride) + j] = val;
+            buf[2 + (i + 3) * MTX_STRIDE(buf_stride) + j] = val;
         }
     expand_matrix(buf, w, h, buf_stride);
 
@@ -2613,6 +2617,7 @@ Filter_pass_0(float *omtx, float const *imtx,
     omtx -= height * MTX_STRIDE(stride) + 2;
     memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
+    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
     memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
@@ -2789,6 +2794,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
     omtx -= height * MTX_STRIDE(stride) + 2;
     memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
+    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
     memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
@@ -2962,6 +2968,7 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
     omtx -= height * MTX_STRIDE(stride) + 2;
     memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
+    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
     memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
     memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
@@ -3090,10 +3097,10 @@ Filter(filter_t *filter, picture_t *ipic)
 /* TODO init in filter_sys and reuse */
 
     unsigned const extw = sys->width + 5;
-    float *input  = sys->input + 2 * extw + 2;
-    float *pass_0 = sys->pass_0 + 2 * extw + 2;
-    float *pass_1 = sys->pass_1 + 2 * extw + 2;
-    float *pass_2 = sys->pass_2 + 2 * extw + 2;
+    float *input  = sys->input + 3 * extw + 2;
+    float *pass_0 = sys->pass_0 + 3 * extw + 2;
+    float *pass_1 = sys->pass_1 + 3 * extw + 2;
+    float *pass_2 = sys->pass_2 + 3 * extw + 2;
 
     Filter_prepare(sys->input, ipic->Y_PIXELS, sys->width, sys->height,
                    extw * sizeof(float), ipic->Y_PITCH);
@@ -3171,7 +3178,7 @@ Open(vlc_object_t *obj)
     unsigned const w = filter->fmt_in.video.i_visible_width;
     unsigned const h = filter->fmt_in.video.i_visible_height;
     unsigned const extw = w + 5;
-    unsigned const exth = h + 5;
+    unsigned const exth = h + 6;
 
     sys->input  = malloc(extw * exth * sizeof(float)); if (!sys->input)  goto error;
     sys->pass_0 = malloc(extw * exth * sizeof(float)); if (!sys->pass_0) goto error;
