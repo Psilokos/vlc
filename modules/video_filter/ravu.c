@@ -3678,32 +3678,54 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
+            fprintf(stderr, "coord_y => %f\n", coord_y);
 
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
-            res += (pixels[0 * 6 + 0] + pixels[5 * 6 + 5]) * weights[0];
-            res += (pixels[1 * 6 + 0] + pixels[4 * 6 + 5]) * weights[1];
-            res += (pixels[2 * 6 + 0] + pixels[3 * 6 + 5]) * weights[2];
-            res += (pixels[3 * 6 + 0] + pixels[2 * 6 + 5]) * weights[3];
-            res += (pixels[4 * 6 + 0] + pixels[1 * 6 + 5]) * weights[4];
-            res += (pixels[5 * 6 + 0] + pixels[0 * 6 + 5]) * weights[5];
+            res += (pixels[0 * 8 + 0] + pixels[5 * 8 + 5]) * weights[0];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[0 * 8 + 0], pixels[5 * 8 + 5], weights[0], res);
+            res += (pixels[1 * 8 + 0] + pixels[4 * 8 + 5]) * weights[1];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[1 * 8 + 0], pixels[4 * 8 + 5], weights[1], res);
+            res += (pixels[2 * 8 + 0] + pixels[3 * 8 + 5]) * weights[2];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[2 * 8 + 0], pixels[3 * 8 + 5], weights[2], res);
+            res += (pixels[3 * 8 + 0] + pixels[2 * 8 + 5]) * weights[3];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[3 * 8 + 0], pixels[2 * 8 + 5], weights[3], res);
+            res += (pixels[4 * 8 + 0] + pixels[1 * 8 + 5]) * weights[4];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[4 * 8 + 0], pixels[1 * 8 + 5], weights[4], res);
+            res += (pixels[5 * 8 + 0] + pixels[0 * 8 + 5]) * weights[5];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[5 * 8 + 0], pixels[0 * 8 + 5], weights[5], res);
 
-            res += (pixels[0 * 6 + 1] + pixels[5 * 6 + 4]) * weights[6];
-            res += (pixels[1 * 6 + 1] + pixels[4 * 6 + 4]) * weights[7];
-            res += (pixels[2 * 6 + 1] + pixels[3 * 6 + 4]) * weights[8];
-            res += (pixels[3 * 6 + 1] + pixels[2 * 6 + 4]) * weights[9];
-            res += (pixels[4 * 6 + 1] + pixels[1 * 6 + 4]) * weights[10];
-            res += (pixels[5 * 6 + 1] + pixels[0 * 6 + 4]) * weights[11];
+            res += (pixels[0 * 8 + 1] + pixels[5 * 8 + 4]) * weights[6];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[0 * 8 + 1], pixels[5 * 8 + 4], weights[6], res);
+            res += (pixels[1 * 8 + 1] + pixels[4 * 8 + 4]) * weights[7];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[1 * 8 + 1], pixels[4 * 8 + 4], weights[7], res);
+            res += (pixels[2 * 8 + 1] + pixels[3 * 8 + 4]) * weights[8];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[2 * 8 + 1], pixels[3 * 8 + 4], weights[8], res);
+            res += (pixels[3 * 8 + 1] + pixels[2 * 8 + 4]) * weights[9];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[3 * 8 + 1], pixels[2 * 8 + 4], weights[9], res);
+            res += (pixels[4 * 8 + 1] + pixels[1 * 8 + 4]) * weights[10];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[4 * 8 + 1], pixels[1 * 8 + 4], weights[10], res);
+            res += (pixels[5 * 8 + 1] + pixels[0 * 8 + 4]) * weights[11];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[5 * 8 + 1], pixels[0 * 8 + 4], weights[11], res);
 
-            res += (pixels[0 * 6 + 2] + pixels[5 + 6 + 3]) * weights[12];
-            res += (pixels[1 * 6 + 2] + pixels[4 * 6 + 3]) * weights[13];
-            res += (pixels[2 * 6 + 2] + pixels[3 * 6 + 3]) * weights[14];
-            res += (pixels[3 * 6 + 2] + pixels[2 * 6 + 3]) * weights[15];
-            res += (pixels[4 * 6 + 2] + pixels[1 * 6 + 3]) * weights[16];
-            res += (pixels[5 * 6 + 2] + pixels[0 * 6 + 3]) * weights[17];
+            res += (pixels[0 * 8 + 2] + pixels[5 + 6 + 3]) * weights[12];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[0 * 8 + 2], pixels[5 * 8 + 3], weights[12], res);
+            res += (pixels[1 * 8 + 2] + pixels[4 * 8 + 3]) * weights[13];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[1 * 8 + 2], pixels[4 * 8 + 3], weights[13], res);
+            res += (pixels[2 * 8 + 2] + pixels[3 * 8 + 3]) * weights[14];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[2 * 8 + 2], pixels[3 * 8 + 3], weights[14], res);
+            res += (pixels[3 * 8 + 2] + pixels[2 * 8 + 3]) * weights[15];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[3 * 8 + 2], pixels[2 * 8 + 3], weights[15], res);
+            res += (pixels[4 * 8 + 2] + pixels[1 * 8 + 3]) * weights[16];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[4 * 8 + 2], pixels[1 * 8 + 3], weights[16], res);
+            res += (pixels[5 * 8 + 2] + pixels[0 * 8 + 3]) * weights[17];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[5 * 8 + 2], pixels[0 * 8 + 3], weights[17], res);
 
-            omtx[x] = VLC_CLIP(ROUND2(res, 16), 0, 255) / 255.f;
+            res = ROUND2(res, 16);
+            res = VLC_CLIP(res, 0, 255);
+            omtx[x] = res / 255.f;
+            fprintf(stderr, "pix => %f\n", omtx[x]);
         }
         expand_line(omtx, width);
         imtx += MTX_STRIDE(stride);
