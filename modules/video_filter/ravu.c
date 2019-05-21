@@ -2,6 +2,9 @@
 # include "config.h"
 #endif
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <vlc_common.h>
 #include <vlc_filter.h>
 #include <vlc_picture.h>
@@ -18,6 +21,8 @@ struct filter_sys
 
     unsigned width;
     unsigned height;
+    
+    int fd;
 };
 
 struct vec3f  { float   a; float   b; float   c;            };
@@ -2319,7 +2324,7 @@ calc_abd(struct vec3f *abd,
 }
 
 static inline void
-prep_pixel_buffer(uint8_t pixels[static 6 * 6],
+prep_pixel_buffer(uint8_t pixels[static 6 * 8],
                   float const *imtx, ptrdiff_t const stride)
 {
     /* left */
@@ -2359,7 +2364,7 @@ Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
               ptrdiff_t const stride)
 {
-    uint8_t pixels[6 * 8];
+    uint8_t pixels[6 * 8] = {0};
     for (unsigned y = 0; y < height; ++y)
     {
         for (unsigned x = 0; x < width; ++x)
@@ -2384,7 +2389,8 @@ Filter_pass_0(float *omtx, float const *imtx,
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
+            if (!(x + y))
+                fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -2934,6 +2940,13 @@ Filter(filter_t *filter, picture_t *ipic)
                       sys->width, sys->height,
                       extw * sizeof(float), opic->Y_PITCH);
 
+    for (int i = 0; i < opic->p[Y_PLANE].i_visible_lines; ++i)
+    {
+        for (int j = 0; j < opic->p[Y_PLANE].i_visible_pitch; ++j)
+            dprintf(sys->fd, "%x ", opic->Y_PIXELS[i * opic->Y_PITCH + j]);
+        dprintf(sys->fd, "\n");
+    }
+
 #if 0
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
@@ -2954,6 +2967,7 @@ Close(vlc_object_t *obj)
 {
     filter_t *filter = (filter_t *)obj;
     struct filter_sys *sys = (struct filter_sys *)filter->p_sys;
+    close(sys->fd);
     free(sys->pass_2);
     free(sys->pass_1);
     free(sys->pass_0);
@@ -2992,6 +3006,10 @@ Open(vlc_object_t *obj)
     sys->pass_0 = malloc(extw * exth * sizeof(float)); if (!sys->pass_0) goto error;
     sys->pass_1 = malloc(extw * exth * sizeof(float)); if (!sys->pass_1) goto error;
     sys->pass_2 = malloc(extw * exth * sizeof(float)); if (!sys->pass_2) goto error;
+
+    sys->fd = open("ravu-log.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (sys->fd == -1)
+        goto error;
 
     video_format_t *vfmt = &filter->fmt_out.video;
     int const padding_x = vfmt->i_width - vfmt->i_visible_width;
