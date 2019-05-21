@@ -37,8 +37,7 @@ struct vec4f  { float   a; float   b; float   c; float   d; };
 struct vec4u8 { uint8_t a; uint8_t b; uint8_t c; uint8_t d; };
 
 /* FIXME:
- *  - 1 memcpy of X times stride
- *  - remove useless expansions (pass_1, pass_2, pass_final)
+ *  - 1 memcpy of 1*stride + 1 memcpy of 2 * stride
  */
 
 static int16_t const lut_weights[] =
@@ -1708,22 +1707,10 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
         }
-        expand_line(omtx, width);
         pass_0 += MTX_STRIDE(stride);
         imtx += MTX_STRIDE(stride);
         omtx += MTX_STRIDE(stride);
     }
-    omtx -= height * MTX_STRIDE(stride) + 2;
-    memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 2) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    // FIXME is expanding necessary?
 }
 
 static inline void
@@ -1876,22 +1863,10 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
         }
-        expand_line(omtx, width);
         pass_0 += MTX_STRIDE(stride);
         imtx += MTX_STRIDE(stride);
         omtx += MTX_STRIDE(stride);
     }
-    omtx -= height * MTX_STRIDE(stride) + 2;
-    memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 2) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    // FIXME is expanding necessary?
 }
 
 static inline uint8_t
@@ -1996,8 +1971,8 @@ Filter(filter_t *filter, picture_t *ipic)
     unsigned const extw = sys->width + 5;
     float *input  = sys->input + 3 * extw + 2;
     float *pass_0 = sys->pass_0 + 3 * extw + 2;
-    float *pass_1 = sys->pass_1 + 3 * extw + 2;
-    float *pass_2 = sys->pass_2 + 3 * extw + 2;
+    float *pass_1 = sys->pass_1;
+    float *pass_2 = sys->pass_2;
 
     struct timeval tv_start;
     gettimeofday(&tv_start, NULL);
