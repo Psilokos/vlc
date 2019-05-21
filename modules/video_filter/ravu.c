@@ -2327,37 +2327,6 @@ calc_abd(struct vec3f *abd,
     abd->c += gy * gy * factor;
 }
 
-static inline void
-prep_pixel_buffer(uint8_t pixels[static 6 * 8],
-                  float const *imtx, ptrdiff_t const stride)
-{
-    /* left */
-    struct vec4u8 const g0 = gather4u8(imtx, -2, -2, stride);
-    struct vec4u8 const g1 = gather4u8(imtx, -2,  0, stride);
-    struct vec4u8 const g2 = gather4u8(imtx, -2, +2, stride);
-    /* middle */
-    struct vec4u8 const g3 = gather4u8(imtx,  0, -2, stride);
-    struct vec4u8 const g4 = gather4u8(imtx,  0,  0, stride);
-    struct vec4u8 const g5 = gather4u8(imtx,  0, +2, stride);
-    /* right */
-    struct vec4u8 const g6 = gather4u8(imtx, +2, -2, stride);
-    struct vec4u8 const g7 = gather4u8(imtx, +2,  0, stride);
-    struct vec4u8 const g8 = gather4u8(imtx, +2, +2, stride);
-
-    pixels[0 * 8 + 0] = g0.d;    pixels[2 * 8 + 0] = g1.d;    pixels[4 * 8 + 0] = g2.d;
-    pixels[0 * 8 + 1] = g0.c;    pixels[2 * 8 + 1] = g1.c;    pixels[4 * 8 + 1] = g2.c;
-    pixels[0 * 8 + 2] = g3.d;    pixels[2 * 8 + 2] = g4.d;    pixels[4 * 8 + 2] = g5.d;
-    pixels[0 * 8 + 3] = g3.c;    pixels[2 * 8 + 3] = g4.c;    pixels[4 * 8 + 3] = g5.c;
-    pixels[0 * 8 + 4] = g6.d;    pixels[2 * 8 + 4] = g7.d;    pixels[4 * 8 + 4] = g8.d;
-    pixels[0 * 8 + 5] = g6.c;    pixels[2 * 8 + 5] = g7.c;    pixels[4 * 8 + 5] = g8.c;
-    pixels[1 * 8 + 0] = g0.a;    pixels[3 * 8 + 0] = g1.a;    pixels[5 * 8 + 0] = g2.a;
-    pixels[1 * 8 + 1] = g0.b;    pixels[3 * 8 + 1] = g1.b;    pixels[5 * 8 + 1] = g2.b;
-    pixels[1 * 8 + 2] = g3.a;    pixels[3 * 8 + 2] = g4.a;    pixels[5 * 8 + 2] = g5.a;
-    pixels[1 * 8 + 3] = g3.b;    pixels[3 * 8 + 3] = g4.b;    pixels[5 * 8 + 3] = g5.b;
-    pixels[1 * 8 + 4] = g6.a;    pixels[3 * 8 + 4] = g7.a;    pixels[5 * 8 + 4] = g8.a;
-    pixels[1 * 8 + 5] = g6.b;    pixels[3 * 8 + 5] = g7.b;    pixels[5 * 8 + 5] = g8.b;
-}
-
 extern void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
                                         uint32_t *aptr,
                                         int32_t *bptr,
@@ -2368,7 +2337,6 @@ Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
               ptrdiff_t const stride)
 {
-    uint8_t pixels[6 * 8] = {0};
     for (unsigned y = 0; y < height; ++y)
     {
         for (unsigned x = 0; x < width; ++x)
@@ -2376,7 +2344,6 @@ Filter_pass_0(float *omtx, float const *imtx,
             uint32_t a_;
             int32_t b_;
             uint32_t d_;
-            prep_pixel_buffer(pixels, imtx + x, stride);
 #if 0
             for (int i = 0; i < 6; ++i)
             {
@@ -2388,6 +2355,14 @@ Filter_pass_0(float *omtx, float const *imtx,
                 fprintf(stderr, "\n");
             }
 #endif
+            float pixels_f[6 * 6];
+            uint8_t pixels[6 * 8] = {0};
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j)
+                    pixels_f[i * 6 + j] = imtx[(int)x + (i - 2) * MTX_STRIDE(stride) + (j - 2)];
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j)
+                    pixels[i * 8 + j] = roundf(pixels_f[i * 6 + j] * 255.f);
             for (int i = 0; i < 6; ++i)
             {
                 for (int j = 0; j < 8; ++j)
@@ -2425,81 +2400,71 @@ Filter_pass_0(float *omtx, float const *imtx,
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
             fprintf(stderr, "%f\n", coord_y);
 
-            struct vec4f g0 = gather4(imtx + x, -2, -2, stride);
-            struct vec4f g1 = gather4(imtx + x, -2,  0, stride);
-            struct vec4f g2 = gather4(imtx + x, -2, +2, stride);
-            struct vec4f g3 = gather4(imtx + x,  0, -2, stride);
-            struct vec4f g4 = gather4(imtx + x,  0,  0, stride);
-            struct vec4f g5 = gather4(imtx + x,  0, +2, stride);
-            struct vec4f g6 = gather4(imtx + x, +2, -2, stride);
-            struct vec4f g7 = gather4(imtx + x, +2,  0, stride);
-            struct vec4f g8 = gather4(imtx + x, +2, +2, stride);
-
             float res = .0f;
             struct vec4f w;
 
             w = lut_val(0, coord_y);
-            res += (g0.d + g8.b) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", g0.d, g8.b, w.a);
+            res += (pixels_f[0 * 6 + 0] + pixels_f[5 * 6 + 5]) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 0], pixels_f[5 * 6 + 5], w.a);
             fprintf(stderr, "%f\n", res);
-            res += (g0.a + g8.c) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", g0.a, g8.c, w.b);
+            res += (pixels_f[1 * 6 + 0] + pixels_f[4 * 6 + 5]) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 0], pixels_f[4 * 6 + 5], w.b);
             fprintf(stderr, "%f\n", res);
-            res += (g1.d + g7.b) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", g1.d, g7.b, w.c);
+            res += (pixels_f[2 * 6 + 0] + pixels_f[3 * 6 + 5]) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 0], pixels_f[3 * 6 + 5], w.c);
             fprintf(stderr, "%f\n", res);
-            res += (g1.a + g7.c) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", g1.a, g7.c, w.d);
+            res += (pixels_f[3 * 6 + 0] + pixels_f[2 * 6 + 5]) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 0], pixels_f[2 * 6 + 5], w.d);
             fprintf(stderr, "%f\n", res);
 
             w = lut_val(1, coord_y);
-            res += (g2.d + g6.b) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", g2.d, g6.b, w.a);
+            res += (pixels_f[4 * 6 + 0] + pixels_f[1 * 6 + 5]) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 0], pixels_f[1 * 6 + 5], w.a);
             fprintf(stderr, "%f\n", res);
-            res += (g2.a + g6.c) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", g2.a, g6.c, w.b);
+            res += (pixels_f[5 * 6 + 0] + pixels_f[0 * 6 + 5]) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 0], pixels_f[0 * 6 + 5], w.b);
             fprintf(stderr, "%f\n", res);
-            res += (g0.c + g8.a) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", g0.c, g8.a, w.c);
+            res += (pixels_f[0 * 6 + 1] + pixels_f[5 * 6 + 4]) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 1], pixels_f[5 * 6 + 4], w.c);
             fprintf(stderr, "%f\n", res);
-            res += (g0.b + g8.d) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", g0.b, g8.d, w.d);
+            res += (pixels_f[1 * 6 + 1] + pixels_f[4 * 6 + 4]) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 1], pixels_f[4 * 6 + 4], w.d);
             fprintf(stderr, "%f\n", res);
 
             w = lut_val(2, coord_y);
-            res += (g1.c + g7.a) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", g1.c, g7.a, w.a);
+            res += (pixels_f[2 * 6 + 1] + pixels_f[3 * 6 + 4]) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 1], pixels_f[3 * 6 + 4], w.a);
             fprintf(stderr, "%f\n", res);
-            res += (g1.b + g7.d) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", g1.b, g7.d, w.b);
+            res += (pixels_f[3 * 6 + 1] + pixels_f[2 * 6 + 4]) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 1], pixels_f[2 * 6 + 4], w.b);
             fprintf(stderr, "%f\n", res);
-            res += (g2.c + g6.a) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", g2.c, g6.a, w.c);
+            res += (pixels_f[4 * 6 + 1] + pixels_f[1 * 6 + 4]) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 1], pixels_f[1 * 6 + 4], w.c);
             fprintf(stderr, "%f\n", res);
-            res += (g2.b + g6.d) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", g2.b, g6.d, w.d);
+            res += (pixels_f[5 * 6 + 1] + pixels_f[0 * 6 + 4]) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 1], pixels_f[0 * 6 + 4], w.d);
             fprintf(stderr, "%f\n", res);
 
             w = lut_val(3, coord_y);
-            res += (g3.d + g5.b) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", g3.d, g5.b, w.a);
+            res += (pixels_f[0 * 6 + 2] + pixels_f[5 + 6 + 3]) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 2], pixels_f[5 * 6 + 3], w.a);
             fprintf(stderr, "%f\n", res);
-            res += (g3.a + g5.c) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", g3.a, g5.c, w.b);
+            res += (pixels_f[1 * 6 + 2] + pixels_f[4 * 6 + 3]) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 2], pixels_f[4 * 6 + 3], w.b);
             fprintf(stderr, "%f\n", res);
-            res += (g4.d + g4.b) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", g4.d, g4.b, w.c);
+            res += (pixels_f[2 * 6 + 2] + pixels_f[3 * 6 + 3]) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 2], pixels_f[3 * 6 + 3], w.c);
             fprintf(stderr, "%f\n", res);
-            res += (g4.a + g4.c) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", g4.a, g4.c, w.d);
+            res += (pixels_f[3 * 6 + 2] + pixels_f[2 * 6 + 3]) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 2], pixels_f[2 * 6 + 3], w.d);
             fprintf(stderr, "%f\n", res);
 
             w = lut_val(4, coord_y);
-            res += (g5.d + g3.b) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", g5.d, g3.b, w.a);
+            res += (pixels_f[4 * 6 + 2] + pixels_f[1 * 6 + 3]) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 2], pixels_f[1 * 6 + 3], w.a);
             fprintf(stderr, "%f\n", res);
-            res += (g5.a + g3.c) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", g5.a, g3.c, w.b);
+            res += (pixels_f[5 * 6 + 2] + pixels_f[0 * 6 + 3]) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 2], pixels_f[0 * 6 + 3], w.b);
             fprintf(stderr, "%f\n", res);
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
