@@ -28,6 +28,8 @@ struct filter_sys
 struct vec3f { float a; float b; float c; };
 struct vec4f { float a; float b; float c; float d; };
 
+struct vec4i16 { int16_t a; int16_t b; int16_t c; int16_t d; };
+
 /* FIXME:
  *  - 1 memcpy of X times stride
  *  - remove useless expansions (pass_1, pass_2, pass_final)
@@ -2279,6 +2281,19 @@ lut_val(float const x_, float const y_)
     };
 }
 
+static inline struct vec4i16
+lut_val_i16(float const x, float const y)
+{
+    struct vec4f const v = lut_val(x, y);
+    return (struct vec4i16)
+    {
+        .a = roundf(v.a * (1 << 16)),
+        .b = roundf(v.b * (1 << 16)),
+        .c = roundf(v.c * (1 << 16)),
+        .d = roundf(v.d * (1 << 16)),
+    };
+}
+
 static inline struct vec4f
 gather4(float const *mtx, int const x, int const y, ptrdiff_t const stride)
 {
@@ -2391,7 +2406,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             float a = abd.a;
             float b = abd.b;
             float d = abd.c;
-            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
+            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -2416,39 +2431,118 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
+            fprintf(stderr, "coord_y => %f\n", coord_y);
+
+            float tmpres;
+            {
+                int32_t res = 0;
+                struct vec4i16 w;
+
+                w = lut_val_i16(0, coord_y);
+                res += (roundf(g0.d * 255.f) + roundf(g8.b * 255.f)) * w.a;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.d * 255.f), (int)roundf(g8.b * 255.f), w.a, res);
+                res += (roundf(g0.a * 255.f) + roundf(g8.c * 255.f)) * w.b;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.a * 255.f), (int)roundf(g8.c * 255.f), w.b, res);
+                res += (roundf(g1.d * 255.f) + roundf(g7.b * 255.f)) * w.c;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.d * 255.f), (int)roundf(g7.b * 255.f), w.c, res);
+                res += (roundf(g1.a * 255.f) + roundf(g7.c * 255.f)) * w.d;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.a * 255.f), (int)roundf(g7.c * 255.f), w.d, res);
+
+                w = lut_val_i16(1, coord_y);
+                res += (roundf(g2.d * 255.f) + roundf(g6.b * 255.f)) * w.a;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g2.d * 255.f), (int)roundf(g6.b * 255.f), w.a, res);
+                res += (roundf(g2.a * 255.f) + roundf(g6.c * 255.f)) * w.b;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g2.a * 255.f), (int)roundf(g6.c * 255.f), w.b, res);
+                res += (roundf(g0.c * 255.f) + roundf(g8.a * 255.f)) * w.c;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.c * 255.f), (int)roundf(g8.a * 255.f), w.c, res);
+                res += (roundf(g0.b * 255.f) + roundf(g8.d * 255.f)) * w.d;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.b * 255.f), (int)roundf(g8.d * 255.f), w.d, res);
+
+                w = lut_val_i16(2, coord_y);
+                res += (roundf(g1.c * 255.f) + roundf(g7.a * 255.f)) * w.a;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.c * 255.f), (int)roundf(g7.a * 255.f), w.a, res);
+                res += (roundf(g1.b * 255.f) + roundf(g7.d * 255.f)) * w.b;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.b * 255.f), (int)roundf(g7.d * 255.f), w.b, res);
+                res += (roundf(g2.c * 255.f) + roundf(g6.a * 255.f)) * w.c;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g2.c * 255.f), (int)roundf(g6.a * 255.f), w.c, res);
+                res += (roundf(g2.b * 255.f) + roundf(g6.d * 255.f)) * w.d;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g2.b * 255.f), (int)roundf(g6.d * 255.f), w.d, res);
+
+                w = lut_val_i16(3, coord_y);
+                res += (roundf(g3.d * 255.f) + roundf(g5.b * 255.f)) * w.a;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.d * 255.f), (int)roundf(g5.b * 255.f), w.a, res);
+                res += (roundf(g3.a * 255.f) + roundf(g5.c * 255.f)) * w.b;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.a * 255.f), (int)roundf(g5.c * 255.f), w.b, res);
+                res += (roundf(g4.d * 255.f) + roundf(g4.b * 255.f)) * w.c;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g4.d * 255.f), (int)roundf(g4.b * 255.f), w.c, res);
+                res += (roundf(g4.a * 255.f) + roundf(g4.c * 255.f)) * w.d;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g4.a * 255.f), (int)roundf(g4.c * 255.f), w.d, res);
+
+                w = lut_val_i16(4, coord_y);
+                res += (roundf(g5.d * 255.f) + roundf(g3.b * 255.f)) * w.a;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.d * 255.f), (int)roundf(g3.b * 255.f), w.a, res);
+                res += (roundf(g5.a * 255.f) + roundf(g3.c * 255.f)) * w.b;
+                fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.a * 255.f), (int)roundf(g3.c * 255.f), w.b, res);
+
+#define ROUND2(x, n) (((x) + (1 << ((n) - 1))) >> (n))
+                tmpres = ROUND2(res, 16);
+                tmpres = VLC_CLIP(tmpres, 0, 255) / 255.f;
+                // fprintf(stderr, "pix => %f\n", tmpres);
+            }
 
             float res = .0f;
             struct vec4f w;
 
             w = lut_val(0, coord_y);
             res += (g0.d + g8.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.a, res);
             res += (g0.a + g8.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
             res += (g1.d + g7.b) * w.c;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.c, res);
             res += (g1.a + g7.c) * w.d;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.d, res);
 
             w = lut_val(1, coord_y);
             res += (g2.d + g6.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.a, res);
             res += (g2.a + g6.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
             res += (g0.c + g8.a) * w.c;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.c, res);
             res += (g0.b + g8.d) * w.d;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.d, res);
 
             w = lut_val(2, coord_y);
             res += (g1.c + g7.a) * w.a;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.a, res);
             res += (g1.b + g7.d) * w.b;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
             res += (g2.c + g6.a) * w.c;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.c, res);
             res += (g2.b + g6.d) * w.d;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.d, res);
 
             w = lut_val(3, coord_y);
             res += (g3.d + g5.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.a, res);
             res += (g3.a + g5.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
             res += (g4.d + g4.b) * w.c;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.c, res);
             res += (g4.a + g4.c) * w.d;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.d, res);
 
             w = lut_val(4, coord_y);
             res += (g5.d + g3.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.a, res);
             res += (g5.a + g3.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
+            fprintf(stderr, "pix => %f\n", roundf(omtx[x] * 255.f) / 255.f);
+
+            // fprintf(stderr, "%f %f\n\n", tmpres, omtx[x]);
         }
         // fprintf(stderr, "\n");
         expand_line(omtx, width);
@@ -2928,7 +3022,7 @@ Filter(filter_t *filter, picture_t *ipic)
 
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
-#if 0
+#if 1
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
     msg_Info(filter, "---------------------- END -------------------");
@@ -2960,7 +3054,7 @@ Close(vlc_object_t *obj)
     free(sys);
     var_Destroy(filter, "scale");
 }
-
+ 
 static int
 Open(vlc_object_t *obj)
 {
