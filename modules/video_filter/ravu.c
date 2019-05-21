@@ -3654,8 +3654,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            if (!(x + y))
-                fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
+            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -3709,7 +3708,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             res += (pixels[5 * 8 + 1] + pixels[0 * 8 + 4]) * weights[11];
             fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[5 * 8 + 1], pixels[0 * 8 + 4], weights[11], res);
 
-            res += (pixels[0 * 8 + 2] + pixels[5 + 6 + 3]) * weights[12];
+            res += (pixels[0 * 8 + 2] + pixels[5 * 8 + 3]) * weights[12];
             fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[0 * 8 + 2], pixels[5 * 8 + 3], weights[12], res);
             res += (pixels[1 * 8 + 2] + pixels[4 * 8 + 3]) * weights[13];
             fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[1 * 8 + 2], pixels[4 * 8 + 3], weights[13], res);
