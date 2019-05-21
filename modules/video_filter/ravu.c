@@ -2302,10 +2302,10 @@ gather4u8(float const *mtx, int const x, int const y, ptrdiff_t const stride)
     struct vec4f const g = gather4(mtx, x, y, stride);
     return (struct vec4u8)
     {
-        .a = g.a * 255,
-        .b = g.b * 255,
-        .c = g.c * 255,
-        .d = g.d * 255,
+        .a = roundf(g.a * 255.f),
+        .b = roundf(g.b * 255.f),
+        .c = roundf(g.c * 255.f),
+        .d = roundf(g.d * 255.f),
     };
 }
 
@@ -2909,7 +2909,7 @@ get_pixel(float const *mtx,
 {
     int const x = floorf(x_);
     int const y = floorf(y_);
-    return mtx[y * MTX_STRIDE(stride) + x] * (235 - 16) + 16;
+    return roundf(mtx[y * MTX_STRIDE(stride) + x] * 255.f);
 }
 
 static inline void
