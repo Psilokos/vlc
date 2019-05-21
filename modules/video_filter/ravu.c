@@ -2363,18 +2363,12 @@ Filter_pass_0(float *omtx, float const *imtx,
             for (int i = 0; i < 6; ++i)
                 for (int j = 0; j < 6; ++j)
                     pixels[i * 8 + j] = roundf(pixels_f[i * 6 + j] * 255.f);
-            for (int i = 0; i < 6; ++i)
-            {
-                for (int j = 0; j < 8; ++j)
-                    fprintf(stderr, "%x ", pixels[i * 8 + j]);
-                fprintf(stderr, "\n");
-            }
             vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
 
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            // if (!(x + y))
+            if (!(x + y))
                 fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
@@ -2398,74 +2392,37 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            fprintf(stderr, "%f\n", coord_y);
 
             float res = .0f;
             struct vec4f w;
 
             w = lut_val(0, coord_y);
             res += (pixels_f[0 * 6 + 0] + pixels_f[5 * 6 + 5]) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 0], pixels_f[5 * 6 + 5], w.a);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[1 * 6 + 0] + pixels_f[4 * 6 + 5]) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 0], pixels_f[4 * 6 + 5], w.b);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[2 * 6 + 0] + pixels_f[3 * 6 + 5]) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 0], pixels_f[3 * 6 + 5], w.c);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[3 * 6 + 0] + pixels_f[2 * 6 + 5]) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 0], pixels_f[2 * 6 + 5], w.d);
-            fprintf(stderr, "%f\n", res);
 
             w = lut_val(1, coord_y);
             res += (pixels_f[4 * 6 + 0] + pixels_f[1 * 6 + 5]) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 0], pixels_f[1 * 6 + 5], w.a);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[5 * 6 + 0] + pixels_f[0 * 6 + 5]) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 0], pixels_f[0 * 6 + 5], w.b);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[0 * 6 + 1] + pixels_f[5 * 6 + 4]) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 1], pixels_f[5 * 6 + 4], w.c);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[1 * 6 + 1] + pixels_f[4 * 6 + 4]) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 1], pixels_f[4 * 6 + 4], w.d);
-            fprintf(stderr, "%f\n", res);
 
             w = lut_val(2, coord_y);
             res += (pixels_f[2 * 6 + 1] + pixels_f[3 * 6 + 4]) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 1], pixels_f[3 * 6 + 4], w.a);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[3 * 6 + 1] + pixels_f[2 * 6 + 4]) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 1], pixels_f[2 * 6 + 4], w.b);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[4 * 6 + 1] + pixels_f[1 * 6 + 4]) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 1], pixels_f[1 * 6 + 4], w.c);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[5 * 6 + 1] + pixels_f[0 * 6 + 4]) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 1], pixels_f[0 * 6 + 4], w.d);
-            fprintf(stderr, "%f\n", res);
 
             w = lut_val(3, coord_y);
             res += (pixels_f[0 * 6 + 2] + pixels_f[5 + 6 + 3]) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[0 * 6 + 2], pixels_f[5 * 6 + 3], w.a);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[1 * 6 + 2] + pixels_f[4 * 6 + 3]) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[1 * 6 + 2], pixels_f[4 * 6 + 3], w.b);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[2 * 6 + 2] + pixels_f[3 * 6 + 3]) * w.c;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[2 * 6 + 2], pixels_f[3 * 6 + 3], w.c);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[3 * 6 + 2] + pixels_f[2 * 6 + 3]) * w.d;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[3 * 6 + 2], pixels_f[2 * 6 + 3], w.d);
-            fprintf(stderr, "%f\n", res);
 
             w = lut_val(4, coord_y);
             res += (pixels_f[4 * 6 + 2] + pixels_f[1 * 6 + 3]) * w.a;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[4 * 6 + 2], pixels_f[1 * 6 + 3], w.a);
-            fprintf(stderr, "%f\n", res);
             res += (pixels_f[5 * 6 + 2] + pixels_f[0 * 6 + 3]) * w.b;
-            fprintf(stderr, "(%f + %f) * %f =\n", pixels_f[5 * 6 + 2], pixels_f[0 * 6 + 3], w.b);
-            fprintf(stderr, "%f\n", res);
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
         }
@@ -2965,7 +2922,7 @@ Filter(filter_t *filter, picture_t *ipic)
         dprintf(sys->fd, "\n");
     }
 
-#if 1
+#if 0
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
     msg_Info(filter, "---------------------- END -------------------");
