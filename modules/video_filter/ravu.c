@@ -2388,12 +2388,18 @@ Filter_pass_0(float *omtx, float const *imtx,
                 fprintf(stderr, "\n");
             }
 #endif
+            for (int i = 0; i < 6; ++i)
+            {
+                for (int j = 0; j < 8; ++j)
+                    fprintf(stderr, "%x ", pixels[i * 8 + j]);
+                fprintf(stderr, "\n");
+            }
             vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
 
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            if (!(x + y))
+            // if (!(x + y))
                 fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
@@ -2417,6 +2423,7 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
+            fprintf(stderr, "%f\n", coord_y);
 
             struct vec4f g0 = gather4(imtx + x, -2, -2, stride);
             struct vec4f g1 = gather4(imtx + x, -2,  0, stride);
@@ -2433,31 +2440,67 @@ Filter_pass_0(float *omtx, float const *imtx,
 
             w = lut_val(0, coord_y);
             res += (g0.d + g8.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", g0.d, g8.b, w.a);
+            fprintf(stderr, "%f\n", res);
             res += (g0.a + g8.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", g0.a, g8.c, w.b);
+            fprintf(stderr, "%f\n", res);
             res += (g1.d + g7.b) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", g1.d, g7.b, w.c);
+            fprintf(stderr, "%f\n", res);
             res += (g1.a + g7.c) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", g1.a, g7.c, w.d);
+            fprintf(stderr, "%f\n", res);
 
             w = lut_val(1, coord_y);
             res += (g2.d + g6.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", g2.d, g6.b, w.a);
+            fprintf(stderr, "%f\n", res);
             res += (g2.a + g6.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", g2.a, g6.c, w.b);
+            fprintf(stderr, "%f\n", res);
             res += (g0.c + g8.a) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", g0.c, g8.a, w.c);
+            fprintf(stderr, "%f\n", res);
             res += (g0.b + g8.d) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", g0.b, g8.d, w.d);
+            fprintf(stderr, "%f\n", res);
 
             w = lut_val(2, coord_y);
             res += (g1.c + g7.a) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", g1.c, g7.a, w.a);
+            fprintf(stderr, "%f\n", res);
             res += (g1.b + g7.d) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", g1.b, g7.d, w.b);
+            fprintf(stderr, "%f\n", res);
             res += (g2.c + g6.a) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", g2.c, g6.a, w.c);
+            fprintf(stderr, "%f\n", res);
             res += (g2.b + g6.d) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", g2.b, g6.d, w.d);
+            fprintf(stderr, "%f\n", res);
 
             w = lut_val(3, coord_y);
             res += (g3.d + g5.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", g3.d, g5.b, w.a);
+            fprintf(stderr, "%f\n", res);
             res += (g3.a + g5.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", g3.a, g5.c, w.b);
+            fprintf(stderr, "%f\n", res);
             res += (g4.d + g4.b) * w.c;
+            fprintf(stderr, "(%f + %f) * %f =\n", g4.d, g4.b, w.c);
+            fprintf(stderr, "%f\n", res);
             res += (g4.a + g4.c) * w.d;
+            fprintf(stderr, "(%f + %f) * %f =\n", g4.a, g4.c, w.d);
+            fprintf(stderr, "%f\n", res);
 
             w = lut_val(4, coord_y);
             res += (g5.d + g3.b) * w.a;
+            fprintf(stderr, "(%f + %f) * %f =\n", g5.d, g3.b, w.a);
+            fprintf(stderr, "%f\n", res);
             res += (g5.a + g3.c) * w.b;
+            fprintf(stderr, "(%f + %f) * %f =\n", g5.a, g3.c, w.b);
+            fprintf(stderr, "%f\n", res);
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
         }
@@ -2957,7 +3000,7 @@ Filter(filter_t *filter, picture_t *ipic)
         dprintf(sys->fd, "\n");
     }
 
-#if 0
+#if 1
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
     msg_Info(filter, "---------------------- END -------------------");
