@@ -21,6 +21,9 @@ dd_0x15556: dd 0x15556
 dd_0x80001: dd 0x80001
 dq_0x8000000000: dq 0x8000000000
 
+dd_0x8000: dd 0x8000
+dq_0x80020000: dq 0x80020000
+
 SECTION .text
 
 INIT_ZMM avx512
@@ -152,9 +155,15 @@ SWAP m7, m23
     packusdw            m2, m4
     packssdw            m3, m5
     packusdw            m8, m9
-    packusdw            m2, m30
+; attempt to fix blindly cause can't fucking debug.......
+    vpbroadcastd       m14, [dd_0x8000]
+    psubd               m2, m14
+    psubd               m3, m14
+    psubd               m8, m14
+; end of fucking blind fix attempt
+    packssdw            m2, m30
     packssdw            m3, m30
-    packusdw            m8, m30
+    packssdw            m8, m30
     vextracti128      xmm4, m2, 1
     vextracti128      xmm7, m3, 1
     vextracti128     xmm10, m8, 1
@@ -187,6 +196,13 @@ SWAP m31, m15
     phaddd              m1, m1
     phaddd             m13, m13
     phaddd             m13, m13
+    pmovsxdq            m0, m0
+    pmovsxdq            m1, m1
+    pmovsxdq           m13, m13
+    movq               m15, [dq_0x80020000]
+    paddq               m0, m15
+    paddq               m1, m15
+    paddq              m13, m15
     psrlq              m31, 24
     paddd               m0, m31
     paddd               m1, m31
