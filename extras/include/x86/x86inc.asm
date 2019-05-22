@@ -983,9 +983,6 @@ BRANCH_INSTR jz, je, jnz, jne, jl, jle, jnl, jnle, jg, jge, jng, jnge, ja, jae, 
     %define movnta movntdq
     INIT_CPUFLAGS %1
     DEFINE_MMREGS xmm
-    %if WIN64
-        AVX512_MM_PERMUTATION 6 ; Swap callee-saved registers with volatile registers
-    %endif
 %endmacro
 
 %macro INIT_YMM 0-1+
