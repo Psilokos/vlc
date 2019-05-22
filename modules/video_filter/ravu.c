@@ -16,6 +16,9 @@
 #define MTX_STRIDE(stride)  ((stride) / sizeof(float))
 #define ROUND2(x, n)        (((x) + (1LL << ((n) - 1))) >> (n))
 
+#define ENABLE_BENCH 0
+#define ENABLE_OUTPUT_LOG 0
+
 struct filter_sys
 {
     float *input;
@@ -26,10 +29,14 @@ struct filter_sys
     unsigned width;
     unsigned height;
     
+#if ENABLE_OUTPUT_LOG
     int fd;
+#endif
 
+#if ENABLE_BENCH
     struct timeval *tv_delta;
     size_t num_tv_delta;
+#endif
 };
 
 struct vec3f  { float   a; float   b; float   c;            };
@@ -2022,8 +2029,10 @@ Filter(filter_t *filter, picture_t *ipic)
     float *pass_1 = sys->pass_1;
     float *pass_2 = sys->pass_2;
 
+#if ENABLE_BENCH
     struct timeval tv_start;
     gettimeofday(&tv_start, NULL);
+#endif
 
     Filter_prepare(sys->input, ipic->Y_PIXELS,
                    sys->width, sys->height,
@@ -2040,15 +2049,19 @@ Filter(filter_t *filter, picture_t *ipic)
                       sys->width, sys->height,
                       extw * sizeof(float), opic->Y_PITCH);
 
+#if ENABLE_BENCH
     struct timeval tv_end;
     gettimeofday(&tv_end, NULL);
+#endif
 
+#if ENABLE_OUTPUT_LOG
     for (int i = 0; i < opic->p[Y_PLANE].i_visible_lines; ++i)
     {
         for (int j = 0; j < opic->p[Y_PLANE].i_visible_pitch; ++j)
             dprintf(sys->fd, "%x ", opic->Y_PIXELS[i * opic->Y_PITCH + j]);
         dprintf(sys->fd, "\n");
     }
+#endif
 
 #if 1
     msg_Info(filter, "--------------------- START ------------------");
@@ -2062,6 +2075,7 @@ Filter(filter_t *filter, picture_t *ipic)
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
 
+#if ENABLE_BENCH
     if ((sys->num_tv_delta & 4095) == 0)
     {
         size_t const new_size =
@@ -2075,6 +2089,7 @@ Filter(filter_t *filter, picture_t *ipic)
     struct timeval tmp;
     timersub(&tv_end, &tv_start, &tmp);
     sys->tv_delta[sys->num_tv_delta++] = tmp;
+#endif
     goto ret;
 
 error:
@@ -2090,6 +2105,7 @@ Close(vlc_object_t *obj)
     filter_t *filter = (filter_t *)obj;
     struct filter_sys *sys = (struct filter_sys *)filter->p_sys;
 
+#if ENABLE_BENCH
     uint64_t total_delta = 0;
     for (size_t i = 0; i < sys->num_tv_delta; ++i)
         total_delta += (uint64_t)sys->tv_delta[i].tv_sec * 1000000
@@ -2099,9 +2115,14 @@ Close(vlc_object_t *obj)
                  total_delta / sys->num_tv_delta);
     else
         msg_Err(filter, "no benchmark record");
+#endif
 
+#if ENABLE_OUTPUT_LOG
     close(sys->fd);
+#endif
+#if ENABLE_BENCH
     free(sys->tv_delta);
+#endif
     free(sys->pass_2);
     free(sys->pass_1);
     free(sys->pass_0);
@@ -2141,13 +2162,17 @@ Open(vlc_object_t *obj)
     sys->pass_1 = malloc(extw * exth * sizeof(float)); if (!sys->pass_1) goto error;
     sys->pass_2 = malloc(extw * exth * sizeof(float)); if (!sys->pass_2) goto error;
 
+#if ENABLE_BENCH
     sys->tv_delta = malloc(4096 * sizeof(struct timeval));
     if (!sys->tv_delta)
         goto error;
+#endif
 
+#if ENABLE_OUTPUT_LOG
     sys->fd = open("ravu-log.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (sys->fd == -1)
         goto error;
+#endif
 
     video_format_t *vfmt = &filter->fmt_out.video;
     int const padding_x = vfmt->i_width - vfmt->i_visible_width;
