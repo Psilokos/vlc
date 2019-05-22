@@ -1432,6 +1432,7 @@ extern void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
                                         int32_t *bptr,
                                         uint32_t *cptr);
 
+#define fprintf(...)
 static inline void
 Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
@@ -1555,6 +1556,7 @@ Filter_pass_0(float *omtx, float const *imtx,
     memcpy(omtx + (height + 2) * MTX_STRIDE(stride),
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
 }
+#undef fprintf
 
 static inline void
 Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
@@ -1656,6 +1658,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             float a = abd.a;
             float b = abd.b;
             float d = abd.c;
+            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -1678,6 +1681,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = (angle * 9.f + strength) * 3.f + coherence + .5f;
+            fprintf(stderr, "coord_y => %f\n", coord_y);
 
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
