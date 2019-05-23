@@ -3689,6 +3689,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
+#define fprintf(...)
             res += (pixels[0 * 8 + 0] + pixels[5 * 8 + 5]) * weights[0];
             fprintf(stderr, "(%d + %d) * %d = %d\n", pixels[0 * 8 + 0], pixels[5 * 8 + 5], weights[0], res);
             res += (pixels[1 * 8 + 0] + pixels[4 * 8 + 5]) * weights[1];
@@ -3732,6 +3733,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
             fprintf(stderr, "pix => %f\n", omtx[x]);
+#undef fprintf
         }
         expand_line(omtx, width);
         imtx += MTX_STRIDE(stride);
@@ -4240,7 +4242,7 @@ Filter(filter_t *filter, picture_t *ipic)
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
     msg_Info(filter, "---------------------- END -------------------");
 #else
-    // msg_Info(filter, "RAVU is alive and well my friend");
+    msg_Info(filter, "RAVU is alive and well my friend");
 #endif
 
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
