@@ -111,6 +111,7 @@ SWAP m4, m20
 SWAP m5, m21
 SWAP m6, m22
 SWAP m7, m23
+; fixme use ymm till pmovzx or .abd
     vinserti32x4        m4, xmm10, 1
     vinserti32x4        m5, xmm11, 1
     pslld           m2{k3}, m2, 3
@@ -138,8 +139,8 @@ SWAP m7, m23
     ; fixme shift by 41 to avoid unsigned 16-bit values => also fix added value for rounding
     psrlq               m2, 40          ; gx * gx top / bottom
     psrlq               m4, 40          ; gx * gx mid
-    psrlq               m3, 40          ; gx * gy top / bottom
-    psrlq               m5, 40          ; gx * gy mid
+    vpsraq              m3, 40          ; gx * gy top / bottom
+    vpsraq              m5, 40          ; gx * gy mid
     psrlq               m8, 40          ; gy * gy top / bottom
     psrlq               m9, 40          ; gy * gy mid
     packusdw            m2, m4
@@ -163,6 +164,7 @@ SWAP m7, m23
     vextracti128      xmm6, m2, 3
     vextracti128      xmm9, m3, 3
     vextracti128     xmm12, m8, 3
+.vnni:
 INIT_XMM avx512
 SWAP m31, m15
     pxor                m0, m0
@@ -198,7 +200,7 @@ SWAP m31, m15
     paddd               m1, m31
     paddd              m13, m31
     psrld               m0, 16
-    psrld               m1, 16
+    psrad               m1, 16
     psrld              m13, 16
     movd              [aq], m0
     movd              [bq], m1
