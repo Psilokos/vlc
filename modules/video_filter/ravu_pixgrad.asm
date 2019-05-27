@@ -84,28 +84,22 @@ SWAP m7, m23
     vpermd              m4, m21, m4
     vpermd              m6, m21, m6
     ; fixme quite ugly, no phsubd in avx512.... maybe using column vectors is better
-    vextracti32x8     ymm8, m2, 1
-    vextracti32x8     ymm9, m3, 1
+    vextracti32x8     ymm2, m2, 1
+    vextracti32x8     ymm3, m3, 1
     vextracti32x8    ymm10, m4, 1
     vextracti32x8    ymm11, m5, 1
-    vextracti32x8    ymm12, m6, 1
-    vextracti32x8    ymm13, m7, 1
 INIT_YMM avx2
     ; fixme m2 / m12 diffs are useless ; same for big diff, so:
     ; could phsubd m8, m6
     ;   and phsubd m9, m7
     phsubd              m2, m6
-    phsubd              m8, m12
     phsubd              m3, m7
-    phsubd              m9, m13
     phsubd              m4, m4
     phsubd             m10, m10
     phsubd              m5, m5
     phsubd             m11, m11
     vpermq              m2, m2, q3120
-    vpermq              m8, m8, q3120
     vpermq              m3, m3, q3120
-    vpermq              m9, m9, q3120
     vpermq              m4, m4, q3120
     vpermq             m10, m10, q3120
     vpermq              m5, m5, q3120
@@ -117,8 +111,6 @@ SWAP m4, m20
 SWAP m5, m21
 SWAP m6, m22
 SWAP m7, m23
-    vinserti32x8        m2, ymm8, 1
-    vinserti32x8        m3, ymm9, 1
     vinserti32x4        m4, xmm10, 1
     vinserti32x4        m5, xmm11, 1
     pslld           m2{k3}, m2, 3
@@ -127,14 +119,8 @@ SWAP m7, m23
     paddd           m4{k3}, m4, m5
     pmulld              m2, m0          ; gx top / bottom
     pmulld              m4, m0          ; gx mid
-    punpckhdq           m3, m2, m30
-    punpckldq           m2, m30
-    vpermq          m2{k4}, m2, q1032
-    vpermq          m3{k5}, m3, q1032
-    ; fixme k6 cc instead of cccc
-    vpblendmq       m2{k6}, m2, m3
-    vpermd       m4{k7}{z}, m19, m4
-    punpckldq           m4, m30
+    pmovzxdq            m2, ymm2
+    pmovzxdq            m4, ymm4
 .abd:
 ; calc_abd
     pmuldq              m3, m2, m8
