@@ -62,7 +62,7 @@ SWAP m7, m23
 ; vertical gradients
     psubd               m8, m4, m2      ; small diffs: high 256 bits used in big grads
     psubd              m10, m6, m4      ; small diffs:  low 256 bits used in big grads
-    psubd              m11, m6, m2      ; big diffs
+    psubd              m11, m2, m6      ; big diffs
     vextracti32x8    ymm25, m8, 1
     vinserti32x8        m9, ymm26, 1    ; small mid diffs
     vpblendmb       m8{k2}, m8, m10     ; small top / bottom diffs
@@ -91,6 +91,9 @@ SWAP m7, m23
     vextracti32x8    ymm12, m6, 1
     vextracti32x8    ymm13, m7, 1
 INIT_YMM avx2
+    ; fixme m2 / m12 diffs are useless ; same for big diff, so:
+    ; could phsubd m8, m6
+    ;   and phsubd m9, m7
     phsubd              m2, m6
     phsubd              m8, m12
     phsubd              m3, m7
@@ -128,6 +131,7 @@ SWAP m7, m23
     punpckldq           m2, m30
     vpermq          m2{k4}, m2, q1032
     vpermq          m3{k5}, m3, q1032
+    ; fixme k6 cc instead of cccc
     vpblendmq       m2{k6}, m2, m3
     vpermd       m4{k7}{z}, m19, m4
     punpckldq           m4, m30
