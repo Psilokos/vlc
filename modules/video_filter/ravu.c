@@ -1563,7 +1563,7 @@ Filter_pass_0(float *omtx, float const *imtx,
 }
 #undef fprintf
 
-#define fprintf(...)
+// #define fprintf(...)
 static inline void
 Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
               unsigned const width, unsigned const height,
@@ -1586,8 +1586,6 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             float sample31 = imtx[-2 * MTX_STRIDE(stride) + x + 1];
             float sample23 = imtx[+1 * MTX_STRIDE(stride) + x + 2];
             float sample35 = imtx[ 0 * MTX_STRIDE(stride) + x + 3];
-            fprintf(stderr, "%f %f %f %f %f %f\n",
-                    sample00, sample02, sample24, sample31, sample23, sample35);
 
             float sample18 = pass_0[-2 * MTX_STRIDE(stride) + x - 1];
             float sample03 = pass_0[+1 * MTX_STRIDE(stride) + x - 1];
@@ -1694,30 +1692,49 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
-            res += (uint8_t)(roundf(sample00 * 255.f) + roundf(sample35 * 255.f)) * weights[0];
-            res += (uint8_t)(roundf(g3.a * 255.f) + roundf(sample34 * 255.f)) * weights[1];
-            res += (uint8_t)(roundf(sample02 * 255.f) + roundf(g2.c * 255.f)) * weights[2];
-            res += (uint8_t)(roundf(sample03 * 255.f) + roundf(g4.c * 255.f)) * weights[3];
-            res += (uint8_t)(roundf(g1.a * 255.f) + roundf(sample31 * 255.f)) * weights[4];
-            res += (uint8_t)(roundf(sample05 * 255.f) + roundf(sample30 * 255.f)) * weights[5];
+            res += (int)(roundf(sample00 * 255.f) + roundf(sample35 * 255.f)) * weights[0];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample00 * 255.f), (int)roundf(sample35 * 255.f), weights[0], res);
+            res += (int)(roundf(g3.a * 255.f) + roundf(sample34 * 255.f)) * weights[1];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.a * 255.f), (int)roundf(sample34 * 255.f), weights[1], res);
+            res += (int)(roundf(sample02 * 255.f) + roundf(g2.c * 255.f)) * weights[2];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample02 * 255.f), (int)roundf(g2.c * 255.f), weights[2], res);
+            res += (int)(roundf(sample03 * 255.f) + roundf(g4.c * 255.f)) * weights[3];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample03 * 255.f), (int)roundf(g4.c * 255.f), weights[3], res);
+            res += (int)(roundf(g1.a * 255.f) + roundf(sample31 * 255.f)) * weights[4];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.a * 255.f), (int)roundf(sample31 * 255.f), weights[4], res);
+            res += (int)(roundf(sample05 * 255.f) + roundf(sample30 * 255.f)) * weights[5];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample05 * 255.f), (int)roundf(sample30 * 255.f), weights[5], res);
 
-            res += (uint8_t)(roundf(g3.d * 255.f) + roundf(sample29 * 255.f)) * weights[6];
-            res += (uint8_t)(roundf(g0.a * 255.f) + roundf(g2.b * 255.f)) * weights[7];
-            res += (uint8_t)(roundf(g3.b * 255.f) + roundf(g4.b * 255.f)) * weights[8];
-            res += (uint8_t)(roundf(g1.d * 255.f) + roundf(g2.d * 255.f)) * weights[9];
-            res += (uint8_t)(roundf(g5.a * 255.f) + roundf(g4.d * 255.f)) * weights[10];
-            res += (uint8_t)(roundf(g1.b * 255.f) + roundf(sample24 * 255.f)) * weights[11];
+            res += (int)(roundf(g3.d * 255.f) + roundf(sample29 * 255.f)) * weights[6];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.d * 255.f), (int)roundf(sample29 * 255.f), weights[6], res);
+            res += (int)(roundf(g0.a * 255.f) + roundf(g2.b * 255.f)) * weights[7];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.a * 255.f), (int)roundf(g2.b * 255.f), weights[7], res);
+            res += (int)(roundf(g3.b * 255.f) + roundf(g4.b * 255.f)) * weights[8];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.b * 255.f), (int)roundf(g4.b * 255.f), weights[8], res);
+            res += (int)(roundf(g1.d * 255.f) + roundf(g2.d * 255.f)) * weights[9];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.d * 255.f), (int)roundf(g2.d * 255.f), weights[9], res);
+            res += (int)(roundf(g5.a * 255.f) + roundf(g4.d * 255.f)) * weights[10];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.a * 255.f), (int)roundf(g4.d* 255.f), weights[10], res);
+            res += (int)(roundf(g1.b * 255.f) + roundf(sample24 * 255.f)) * weights[11];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.b * 255.f), (int)roundf(sample24 * 255.f), weights[11], res);
 
-            res += (uint8_t)(roundf(g0.d * 255.f) + roundf(sample23 * 255.f)) * weights[12];
-            res += (uint8_t)(roundf(g3.c * 255.f) + roundf(g5.c * 255.f)) * weights[13];
-            res += (uint8_t)(roundf(g0.b * 255.f) + roundf(g2.a * 255.f)) * weights[14];
-            res += (uint8_t)(roundf(g5.d * 255.f) + roundf(g4.a * 255.f)) * weights[14];
-            res += (uint8_t)(roundf(g1.c * 255.f) + roundf(g0.c * 255.f)) * weights[16];
-            res += (uint8_t)(roundf(g5.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
+            res += (int)(roundf(g0.d * 255.f) + roundf(sample23 * 255.f)) * weights[12];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.d * 255.f), (int)roundf(sample23 * 255.f), weights[12], res);
+            res += (int)(roundf(g3.c * 255.f) + roundf(g5.c * 255.f)) * weights[13];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.c * 255.f), (int)roundf(g5.c * 255.f), weights[13], res);
+            res += (int)(roundf(g0.b * 255.f) + roundf(g2.a * 255.f)) * weights[14];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.b * 255.f), (int)roundf(g2.a * 255.f), weights[14], res);
+            res += (int)(roundf(g5.d * 255.f) + roundf(g4.a * 255.f)) * weights[15];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.d * 255.f), (int)roundf(g4.a * 255.f), weights[15], res);
+            res += (int)(roundf(g1.c * 255.f) + roundf(g0.c * 255.f)) * weights[16];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.c * 255.f), (int)roundf(g0.c * 255.f), weights[16], res);
+            res += (int)(roundf(g5.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
+            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.b * 255.f), (int)roundf(sample18 * 255.f), weights[17], res);
 
             res = ROUND2(res, 15);
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
+            fprintf(stderr, "res ===> %f\n\n", omtx[x]);
         }
         pass_0 += MTX_STRIDE(stride);
         imtx += MTX_STRIDE(stride);
