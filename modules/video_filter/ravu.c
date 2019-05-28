@@ -2287,10 +2287,10 @@ lut_val_i16(float const x, float const y)
     struct vec4f const v = lut_val(x, y);
     return (struct vec4i16)
     {
-        .a = roundf(v.a * (1 << 16)),
-        .b = roundf(v.b * (1 << 16)),
-        .c = roundf(v.c * (1 << 16)),
-        .d = roundf(v.d * (1 << 16)),
+        .a = roundf(v.a * (1 << 15)),
+        .b = roundf(v.b * (1 << 15)),
+        .c = roundf(v.c * (1 << 15)),
+        .d = roundf(v.d * (1 << 15)),
     };
 }
 
@@ -2314,6 +2314,7 @@ calc_abd(struct vec3f *abd, float const gx, float const gy, float const factor)
     abd->c += gy * gy * factor;
 }
 
+#define fprintf(...)
 static inline void
 Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
@@ -2338,6 +2339,60 @@ Filter_pass_0(float *omtx, float const *imtx,
 
             struct vec3f abd = {0};
             float gx, gy;
+
+#if 0
+            {
+                fprintf(stderr, "HORIZONTAL GRADIENTS:\n");
+
+                fprintf(stderr, "L1 => %X ", (int)roundf(255.f * (1 << 20) * ((g3.a - g0.a) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g6.a + 8.f * g3.b - 8.f * g0.b + g0.a) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g6.b + 8.f * g6.a - 8.f * g3.a + g0.b) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g6.b - g3.b) / 2.f)));
+
+                fprintf(stderr, "L2 => %X ", (int)roundf(255.f * (1 << 20) * ((g4.d - g1.d) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g7.d + 8.f * g4.c - 8.f * g1.c + g1.d) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g7.c + 8.f * g7.d - 8.f * g4.d + g1.c) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g7.c - g4.c) / 2.f)));
+
+#define HEXVAL(x) (int)roundf(x * 255.f)
+                fprintf(stderr, "%X %X %X %X %X %X\n", HEXVAL(g1.a), HEXVAL(g1.b), HEXVAL(g4.a), HEXVAL(g4.b), HEXVAL(g7.a), HEXVAL(g7.b));
+                fprintf(stderr, "L3 => %X ", (int)roundf(255.f * (1 << 20) * ((g4.a - g1.a) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g7.a + 8.f * g4.b - 8.f * g1.b + g1.a) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g7.b + 8.f * g7.a - 8.f * g4.a + g1.b) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g7.b - g4.b) / 2.f)));
+
+                fprintf(stderr, "L4 => %X ", (int)roundf(255.f * (1 << 20) * ((g5.d - g2.d) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g8.d + 8.f * g5.c - 8.f * g2.c + g2.d) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g8.c + 8.f * g8.d - 8.f * g5.d + g2.c) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g8.c - g5.c) / 2.f)));
+
+
+                fprintf(stderr, "\nVERTICAL GRADIENTS:\n");
+
+                fprintf(stderr, "L1 => %X ", (int)roundf(255.f * (1 << 20) * ((g1.c - g0.c) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((g4.d - g3.d) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((g4.c - g3.c) / 2.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g7.d - g6.d) / 2.f)));
+
+                fprintf(stderr, "L2 => %X ", (int)roundf(255.f * (1 << 20) * ((-g2.c + 8.f * g1.b - 8.f * g0.b + g0.c) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g5.d + 8.f * g4.a - 8.f * g3.a + g3.d) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g5.c + 8.f * g4.b - 8.f * g3.b + g3.c) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((-g8.d + 8.f * g7.a - 8.f * g6.a + g6.d) / 12.f)));
+#if 0
+#define HEXVAL(x) (int)roundf(x * 255.f)
+                fprintf(stderr, "%X %X %X %X %X %X\n", HEXVAL(g1.a), HEXVAL(g1.b), HEXVAL(g4.a), HEXVAL(g4.b), HEXVAL(g7.a), HEXVAL(g7.b));
+#endif
+                fprintf(stderr, "L3 => %X ", (int)roundf(255.f * (1 << 20) * ((-g2.b + 8.f * g2.c - 8.f * g1.c + g0.b) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g5.a + 8.f * g5.d - 8.f * g4.d + g3.a) / 12.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((-g5.b + 8.f * g5.c - 8.f * g4.c + g3.b) / 12.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((-g8.a + 8.f * g8.d - 8.f * g7.d + g6.a) / 12.f)));
+
+                fprintf(stderr, "L4 => %X ", (int)roundf(255.f * (1 << 20) * ((g2.b - g1.b) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((g5.a - g4.a) / 2.f)));
+                fprintf(stderr, "%X ", (int)roundf(255.f * (1 << 20) * ((g5.b - g4.b) / 2.f)));
+                fprintf(stderr, "%X\n", (int)roundf(255.f * (1 << 20) * ((g8.a - g7.a) / 2.f)));
+            }
+#endif
 
             gx = (g3.a - g0.a) / 2.f;
             gy = (g1.c - g0.c) / 2.f;
@@ -2406,7 +2461,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             float a = abd.a;
             float b = abd.b;
             float d = abd.c;
-            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
+            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -2431,8 +2486,13 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            fprintf(stderr, "coord_y => %f\n", coord_y);
+            if (y == 6 && x == 0)
+            {
+                fprintf(stderr, "================================================================>>>>> THIS ONE\n");
+                fprintf(stderr, "coord_y => %f\n", coord_y);
+            }
 
+//#define fprintf(...)
             float tmpres;
             {
                 int32_t res = 0;
@@ -2485,10 +2545,11 @@ Filter_pass_0(float *omtx, float const *imtx,
                 fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.a * 255.f), (int)roundf(g3.c * 255.f), w.b, res);
 
 #define ROUND2(x, n) (((x) + (1 << ((n) - 1))) >> (n))
-                tmpres = ROUND2(res, 16);
+                tmpres = ROUND2(res, 15);
                 tmpres = VLC_CLIP(tmpres, 0, 255) / 255.f;
-                // fprintf(stderr, "pix => %f\n", tmpres);
+                fprintf(stderr, "pix => %f\n", tmpres);
             }
+//#undef fprintf
 
             float res = .0f;
             struct vec4f w;
@@ -2540,7 +2601,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             fprintf(stderr, "(%f + %f) * %f = %f\n", g0.a, g8.b, w.b, res);
 
             omtx[x] = VLC_CLIP(res, .0f, 1.f);
-            fprintf(stderr, "pix => %f\n", roundf(omtx[x] * 255.f) / 255.f);
+            fprintf(stderr, "pix => %f\n\n", roundf(omtx[x] * 255.f) / 255.f);
 
             // fprintf(stderr, "%f %f\n\n", tmpres, omtx[x]);
         }
@@ -2559,7 +2620,9 @@ Filter_pass_0(float *omtx, float const *imtx,
     memcpy(omtx + (height + 2) * MTX_STRIDE(stride),
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
 }
+#undef fprintf
 
+// #define fprintf(...)
 static inline void
 Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
               unsigned const width, unsigned const height,
@@ -2660,6 +2723,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             float a = abd.a;
             float b = abd.b;
             float d = abd.c;
+            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -2682,6 +2746,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = (angle * 9.f + strength) * 3.f + coherence + .5f;
+            fprintf(stderr, "coord_y => %f\n", coord_y);
 
             float res = .0f;
             struct vec4f w;
@@ -2732,6 +2797,7 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
            omtx + (height - 1) * MTX_STRIDE(stride), stride);
     // FIXME is expanding necessary?
 }
+#undef fprintf
 
 static inline void
 Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
@@ -2947,7 +3013,9 @@ Filter_pass_final(uint8_t *output,
 
 static inline void
 Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
-             unsigned const w, unsigned const h)
+             unsigned const w, unsigned const h,
+             uint8_t const *input, ptrdiff_t const istride,
+             uint8_t const *output, ptrdiff_t const ostride)
 {
     fprintf(stderr, "PASS 0:\n");
     for (unsigned i = 0; i < h; ++i)
@@ -2970,6 +3038,22 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
     {
         for (unsigned j = 0; j < w; ++j)
             fprintf(stderr, "%.05f ", pass_2[i * (w + 5) + j]);
+        fprintf(stderr, "\n");
+    }
+
+    fprintf(stderr, "INPUT:\n");
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", input[i * istride + j]);
+        fprintf(stderr, "\n");
+    }
+
+    fprintf(stderr, "OUTPUT:\n");
+    for (unsigned i = 0; i < h * 2; ++i)
+    {
+        for (unsigned j = 0; j < w * 2; ++j)
+            fprintf(stderr, "%02X ", output[i * ostride + j]);
         fprintf(stderr, "\n");
     }
 }
@@ -3024,7 +3108,8 @@ Filter(filter_t *filter, picture_t *ipic)
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
 #if 1
     msg_Info(filter, "--------------------- START ------------------");
-    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
+    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height,
+                 ipic->Y_PIXELS, ipic->Y_PITCH, opic->Y_PIXELS, opic->Y_PITCH);
     msg_Info(filter, "---------------------- END -------------------");
 #else
     msg_Info(filter, "RAVU is alive and well my friend");
