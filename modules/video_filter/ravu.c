@@ -1492,9 +1492,13 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            // fprintf(stderr, "coord_y => %f\n", coord_y);
+            if (y == 6 && x == 0)
+            {
+                fprintf(stderr, "THIS ONE!!!\n", coord_y);
+                fprintf(stderr, "coord_y => %f\n", coord_y);
+            }
 
-#define fprintf(...)
+// #define fprintf(...)
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
@@ -1540,7 +1544,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             res = ROUND2(res, 16);
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
-            fprintf(stderr, "pix => %f\n", omtx[x]);
+            fprintf(stderr, "pix => %f\n\n", omtx[x]);
         }
         expand_line(omtx, width);
         imtx += MTX_STRIDE(stride);
@@ -1918,7 +1922,9 @@ Filter_pass_final(uint8_t *output,
 
 static inline void
 Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
-             unsigned const w, unsigned const h)
+             unsigned const w, unsigned const h,
+             uint8_t const *input, ptrdiff_t const istride,
+             uint8_t const *output, ptrdiff_t const ostride)
 {
     fprintf(stderr, "PASS 0:\n");
     for (unsigned i = 0; i < h; ++i)
@@ -1941,6 +1947,22 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
     {
         for (unsigned j = 0; j < w; ++j)
             fprintf(stderr, "%.05f ", pass_2[i * (w + 5) + j]);
+        fprintf(stderr, "\n");
+    }
+
+    fprintf(stderr, "INPUT:\n");
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", input[i * istride + j]);
+        fprintf(stderr, "\n");
+    }
+
+    fprintf(stderr, "OUTPUT:\n");
+    for (unsigned i = 0; i < h * 2; ++i)
+    {
+        for (unsigned j = 0; j < w * 2; ++j)
+            fprintf(stderr, "%02X ", output[i * ostride + j]);
         fprintf(stderr, "\n");
     }
 }
@@ -2009,12 +2031,13 @@ Filter(filter_t *filter, picture_t *ipic)
         dprintf(sys->fd, "\n");
     }
 
-#if 0
+#if 1
     msg_Info(filter, "--------------------- START ------------------");
-    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height);
+    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height,
+                 ipic->Y_PIXELS, ipic->Y_PITCH, opic->Y_PIXELS, opic->Y_PITCH);
     msg_Info(filter, "---------------------- END -------------------");
 #else
-    // msg_Info(filter, "RAVU is alive and well my friend");
+    msg_Info(filter, "RAVU is alive and well my friend");
 #endif
 
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
