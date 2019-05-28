@@ -1469,7 +1469,7 @@ Filter_pass_0(float *omtx, float const *imtx,
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
+            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
