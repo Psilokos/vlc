@@ -6,7 +6,7 @@ PLACEBO_GITURL := https://code.videolan.org/videolan/libplacebo.git
 PLACEBO_BRANCH := hack_branch
 PLACEBO_ARCHIVE := libplacebo-$(PLACEBO_VERSION).tar.xz
 
-DEPS_libplacebo = glslang $(DEPS_glslang) vulkanloader $(DEPS_vulkanloader)
+DEPS_libplacebo = glslang $(DEPS_glslang)
 
 ifndef HAVE_WINSTORE
 PKGS += libplacebo
