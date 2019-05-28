@@ -1492,7 +1492,7 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            fprintf(stderr, "coord_y => %f\n", coord_y);
+            // fprintf(stderr, "coord_y => %f\n", coord_y);
 
 #define fprintf(...)
             int32_t res = 0;
