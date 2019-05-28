@@ -1432,7 +1432,7 @@ extern void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
                                         int32_t *bptr,
                                         uint32_t *cptr);
 
-//#define fprintf(...)
+#define fprintf(...)
 static inline void
 Filter_pass_0(float *omtx, float const *imtx,
               unsigned const width, unsigned const height,
@@ -1586,6 +1586,8 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             float sample31 = imtx[-2 * MTX_STRIDE(stride) + x + 1];
             float sample23 = imtx[+1 * MTX_STRIDE(stride) + x + 2];
             float sample35 = imtx[ 0 * MTX_STRIDE(stride) + x + 3];
+            fprintf(stderr, "%f %f %f %f %f %f\n",
+                    sample00, sample02, sample24, sample31, sample23, sample35);
 
             float sample18 = pass_0[-2 * MTX_STRIDE(stride) + x - 1];
             float sample03 = pass_0[+1 * MTX_STRIDE(stride) + x - 1];
