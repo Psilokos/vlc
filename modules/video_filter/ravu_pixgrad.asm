@@ -149,7 +149,7 @@ SWAP m7, m23
 ; attempt to fix blindly cause can't fucking debug.......
     vpbroadcastd       m14, [dd_0x8000]
     psubd               m2, m14
-    psubd               m3, m14
+    ;psubd               m3, m14
     psubd               m8, m14
 ; end of fucking blind fix attempt
     packssdw            m2, m30
@@ -189,11 +189,11 @@ SWAP m31, m15
     phaddd             m13, m13
     phaddd             m13, m13
     pmovsxdq            m0, m0
-    pmovsxdq            m1, m1
+    ;pmovsxdq            m1, m1
     pmovsxdq           m13, m13
     movq               m15, [dq_0x80020000]
     paddq               m0, m15
-    paddq               m1, m15
+    ;paddq               m1, m15
     paddq              m13, m15
     psrlq              m31, 24
     paddd               m0, m31
