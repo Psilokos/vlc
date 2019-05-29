@@ -16,7 +16,7 @@
 #define MTX_STRIDE(stride)  ((stride) / sizeof(float))
 #define ROUND2(x, n)        (((x) + (1LL << ((n) - 1))) >> (n))
 
-#define ENABLE_BENCH 0
+#define ENABLE_BENCH 1
 #define ENABLE_OUTPUT_LOG 0
 
 struct filter_sys
@@ -1875,26 +1875,26 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
-            res += (uint8_t)(roundf(sample00 * 255.f) + roundf(sample35 * 255.f)) * weights[0];
-            res += (uint8_t)(roundf(g0.a * 255.f) + roundf(sample34 * 255.f)) * weights[1];
-            res += (uint8_t)(roundf(sample02 * 255.f) + roundf(g5.c * 255.f)) * weights[2];
-            res += (uint8_t)(roundf(sample03 * 255.f) + roundf(g1.c * 255.f)) * weights[3];
-            res += (uint8_t)(roundf(g4.a * 255.f) + roundf(sample31 * 255.f)) * weights[4];
-            res += (uint8_t)(roundf(sample05 * 255.f) + roundf(sample30 * 255.f)) * weights[5];
+            res += (int)(roundf(sample00 * 255.f) + roundf(sample35 * 255.f)) * weights[0];
+            res += (int)(roundf(g0.a * 255.f) + roundf(sample34 * 255.f)) * weights[1];
+            res += (int)(roundf(sample02 * 255.f) + roundf(g5.c * 255.f)) * weights[2];
+            res += (int)(roundf(sample03 * 255.f) + roundf(g1.c * 255.f)) * weights[3];
+            res += (int)(roundf(g4.a * 255.f) + roundf(sample31 * 255.f)) * weights[4];
+            res += (int)(roundf(sample05 * 255.f) + roundf(sample30 * 255.f)) * weights[5];
 
-            res += (uint8_t)(roundf(g0.d * 255.f) + roundf(sample29 * 255.f)) * weights[6];
-            res += (uint8_t)(roundf(g3.a * 255.f) + roundf(g5.b * 255.f)) * weights[7];
-            res += (uint8_t)(roundf(g0.b * 255.f) + roundf(g1.b * 255.f)) * weights[8];
-            res += (uint8_t)(roundf(g4.d * 255.f) + roundf(g5.d * 255.f)) * weights[9];
-            res += (uint8_t)(roundf(g2.a * 255.f) + roundf(g1.d * 255.f)) * weights[10];
-            res += (uint8_t)(roundf(g4.b * 255.f) + roundf(sample24 * 255.f)) * weights[11];
+            res += (int)(roundf(g0.d * 255.f) + roundf(sample29 * 255.f)) * weights[6];
+            res += (int)(roundf(g3.a * 255.f) + roundf(g5.b * 255.f)) * weights[7];
+            res += (int)(roundf(g0.b * 255.f) + roundf(g1.b * 255.f)) * weights[8];
+            res += (int)(roundf(g4.d * 255.f) + roundf(g5.d * 255.f)) * weights[9];
+            res += (int)(roundf(g2.a * 255.f) + roundf(g1.d * 255.f)) * weights[10];
+            res += (int)(roundf(g4.b * 255.f) + roundf(sample24 * 255.f)) * weights[11];
 
-            res += (uint8_t)(roundf(g3.d * 255.f) + roundf(sample23 * 255.f)) * weights[12];
-            res += (uint8_t)(roundf(g0.c * 255.f) + roundf(g2.c * 255.f)) * weights[13];
-            res += (uint8_t)(roundf(g3.b * 255.f) + roundf(g5.a * 255.f)) * weights[14];
-            res += (uint8_t)(roundf(g2.d * 255.f) + roundf(g1.a * 255.f)) * weights[15];
-            res += (uint8_t)(roundf(g4.c * 255.f) + roundf(g3.c * 255.f)) * weights[16];
-            res += (uint8_t)(roundf(g2.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
+            res += (int)(roundf(g3.d * 255.f) + roundf(sample23 * 255.f)) * weights[12];
+            res += (int)(roundf(g0.c * 255.f) + roundf(g2.c * 255.f)) * weights[13];
+            res += (int)(roundf(g3.b * 255.f) + roundf(g5.a * 255.f)) * weights[14];
+            res += (int)(roundf(g2.d * 255.f) + roundf(g1.a * 255.f)) * weights[15];
+            res += (int)(roundf(g4.c * 255.f) + roundf(g3.c * 255.f)) * weights[16];
+            res += (int)(roundf(g2.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
 
             res = ROUND2(res, 15);
             res = VLC_CLIP(res, 0, 255);
@@ -1959,6 +1959,12 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
             fprintf(stderr, "%.05f ", pass_0[i * (w + 5) + j]);
         fprintf(stderr, "\n");
     }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_0[i * (w + 5) + j] * 255.f));
+        fprintf(stderr, "\n");
+    }
 
     fprintf(stderr, "PASS 1:\n");
     for (unsigned i = 0; i < h; ++i)
@@ -1967,12 +1973,24 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
             fprintf(stderr, "%.05f ", pass_1[i * (w + 5) + j]);
         fprintf(stderr, "\n");
     }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_1[i * (w + 5) + j] * 255.f));
+        fprintf(stderr, "\n");
+    }
 
     fprintf(stderr, "PASS 2:\n");
     for (unsigned i = 0; i < h; ++i)
     {
         for (unsigned j = 0; j < w; ++j)
             fprintf(stderr, "%.05f ", pass_2[i * (w + 5) + j]);
+        fprintf(stderr, "\n");
+    }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_2[i * (w + 5) + j] * 255.f));
         fprintf(stderr, "\n");
     }
 
@@ -2072,8 +2090,13 @@ Filter(filter_t *filter, picture_t *ipic)
     msg_Info(filter, "RAVU is alive and well my friend");
 #endif
 
+#if 0
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
+#else
+    memset(opic->U_PIXELS, 0x80, opic->U_PITCH * opic->p[U_PLANE].i_visible_lines);
+    memset(opic->V_PIXELS, 0x80, opic->V_PITCH * opic->p[V_PLANE].i_visible_lines);
+#endif
 
 #if ENABLE_BENCH
     if ((sys->num_tv_delta & 4095) == 0)
