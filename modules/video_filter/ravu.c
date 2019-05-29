@@ -1570,7 +1570,7 @@ Filter_pass_0(float *omtx, float const *imtx,
 }
 #undef fprintf
 
-// #define fprintf(...)
+#define fprintf(...)
 static inline void
 Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
               unsigned const width, unsigned const height,
@@ -2063,7 +2063,7 @@ Filter(filter_t *filter, picture_t *ipic)
     }
 #endif
 
-#if 1
+#if 0
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height,
                  ipic->Y_PIXELS, ipic->Y_PITCH, opic->Y_PIXELS, opic->Y_PITCH);
