@@ -2490,13 +2490,7 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            if (y == 6 && x == 0)
-            {
-                fprintf(stderr, "================================================================>>>>> THIS ONE\n");
-                fprintf(stderr, "coord_y => %f\n", coord_y);
-            }
 
-//#define fprintf(...)
             float tmpres;
             {
                 int32_t res = 0;
@@ -2553,7 +2547,6 @@ Filter_pass_0(float *omtx, float const *imtx,
                 tmpres = VLC_CLIP(tmpres, 0, 255) / 255.f;
                 fprintf(stderr, "pix => %f\n", tmpres);
             }
-//#undef fprintf
 
             float res = .0f;
             struct vec4f w;
@@ -2627,7 +2620,7 @@ Filter_pass_0(float *omtx, float const *imtx,
 }
 #undef fprintf
 
-// #define fprintf(...)
+#define fprintf(...)
 static inline void
 Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
               unsigned const width, unsigned const height,
@@ -3031,6 +3024,12 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
             fprintf(stderr, "%.05f ", pass_0[i * (w + 5) + j]);
         fprintf(stderr, "\n");
     }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_0[i * (w + 5) + j] * 255.f));
+        fprintf(stderr, "\n");
+    }
 
     fprintf(stderr, "PASS 1:\n");
     for (unsigned i = 0; i < h; ++i)
@@ -3039,12 +3038,24 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
             fprintf(stderr, "%.05f ", pass_1[i * (w + 5) + j]);
         fprintf(stderr, "\n");
     }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_1[i * (w + 5) + j] * 255.f));
+        fprintf(stderr, "\n");
+    }
 
     fprintf(stderr, "PASS 2:\n");
     for (unsigned i = 0; i < h; ++i)
     {
         for (unsigned j = 0; j < w; ++j)
             fprintf(stderr, "%.05f ", pass_2[i * (w + 5) + j]);
+        fprintf(stderr, "\n");
+    }
+    for (unsigned i = 0; i < h; ++i)
+    {
+        for (unsigned j = 0; j < w; ++j)
+            fprintf(stderr, "%02X ", (int)roundf(pass_2[i * (w + 5) + j] * 255.f));
         fprintf(stderr, "\n");
     }
 
@@ -3113,7 +3124,7 @@ Filter(filter_t *filter, picture_t *ipic)
 
     upscale_chroma(opic->p + U_PLANE, ipic->p + U_PLANE);
     upscale_chroma(opic->p + V_PLANE, ipic->p + V_PLANE);
-#if 1
+#if 0
     msg_Info(filter, "--------------------- START ------------------");
     Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height,
                  ipic->Y_PIXELS, ipic->Y_PITCH, opic->Y_PIXELS, opic->Y_PITCH);
@@ -3121,13 +3132,6 @@ Filter(filter_t *filter, picture_t *ipic)
 #else
     msg_Info(filter, "RAVU is alive and well my friend");
 #endif
-
-    for (int i = 0; i < opic->p[Y_PLANE].i_visible_lines; ++i)
-    {
-        for (int j = 0; j < opic->p[Y_PLANE].i_visible_pitch; ++j)
-            dprintf(sys->fd, "%x ", opic->Y_PIXELS[i * opic->Y_PITCH + j]);
-        dprintf(sys->fd, "\n");
-    }
  
     picture_Release(ipic);
     return opic;
