@@ -49,7 +49,11 @@ libpuzzle_plugin_la_SOURCES = \
 	video_filter/puzzle_mgt.c video_filter/puzzle_mgt.h \
 	video_filter/puzzle_pce.c video_filter/puzzle_pce.h
 libpuzzle_plugin_la_LIBADD = $(LIBM)
-libravu_plugin_la_SOURCES = video_filter/ravu.c video_filter/ravu_pixgrad.asm
+libravu_plugin_la_SOURCES = \
+	video_filter/ravu.c \
+	video_filter/ravu_pixgrad.asm \
+	video_filter/ravu_shuffle_weights.asm \
+	video_filter/ravu_nn.asm
 libravu_plugin_la_LIBADD = $(LIBM)
 libripple_plugin_la_SOURCES = video_filter/ripple.c
 libripple_plugin_la_LIBADD = $(LIBM)

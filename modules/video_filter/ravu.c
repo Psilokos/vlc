@@ -13,7 +13,6 @@
 #include <vlc_picture.h>
 #include <vlc_plugin.h>
 
-#define MTX_STRIDE(stride)  ((stride) / sizeof(float))
 #define ROUND2(x, n)        (((x) + (1LL << ((n) - 1))) >> (n))
 
 #define ENABLE_BENCH 1
@@ -21,13 +20,16 @@
 
 struct filter_sys
 {
-    float *input;
-    float *pass_0;
-    float *pass_1;
-    float *pass_2;
+    uint8_t *input;
+    uint8_t *pass_0;
+    uint8_t *pass_1;
+    uint8_t *pass_2;
+    int16_t *weights;
+    int16_t *shuf_weights;
 
     unsigned width;
     unsigned height;
+    ptrdiff_t stride;
     
 #if ENABLE_OUTPUT_LOG
     int fd;
@@ -1348,7 +1350,7 @@ static int16_t const lut_weights[] =
 };
 
 static inline void
-expand_line(float *line, unsigned const w)
+expand_line(uint8_t *line, unsigned const w)
 {
     line[-2] = line[0];
     line[-1] = line[0];
@@ -1358,44 +1360,28 @@ expand_line(float *line, unsigned const w)
 }
 
 static inline void
-expand_matrix(float *mtx,
+expand_matrix(uint8_t *mtx,
               unsigned const w, unsigned const h,
               ptrdiff_t const stride)
 {
     for (unsigned i = 0; i < h; ++i)
-        expand_line(mtx + (i + 3) * MTX_STRIDE(stride) + 2, w);
-    memcpy(mtx + 0 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
-    memcpy(mtx + 1 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
-    memcpy(mtx + 2 * MTX_STRIDE(stride), mtx + 3 * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (3 + h + 0) * MTX_STRIDE(stride),
-           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (3 + h + 1) * MTX_STRIDE(stride),
-           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
-    memcpy(mtx + (3 + h + 2) * MTX_STRIDE(stride),
-           mtx + (3 + h - 1) * MTX_STRIDE(stride), stride);
+        expand_line(mtx + (i + 3) * stride + 2, w);
+    memcpy(mtx + 0 * stride, mtx + 3 * stride, stride);
+    memcpy(mtx + 1 * stride, mtx + 3 * stride, stride);
+    memcpy(mtx + 2 * stride, mtx + 3 * stride, stride);
+    memcpy(mtx + (3 + h + 0) * stride, mtx + (3 + h - 1) * stride, stride);
+    memcpy(mtx + (3 + h + 1) * stride, mtx + (3 + h - 1) * stride, stride);
+    memcpy(mtx + (3 + h + 2) * stride, mtx + (3 + h - 1) * stride, stride);
 }
 
 static inline void
-Filter_prepare(float *buf, uint8_t *plane,
+Filter_prepare(uint8_t *buf, uint8_t *plane,
                unsigned const w, unsigned const h,
                ptrdiff_t const buf_stride, ptrdiff_t const plane_stride)
 {
     for (unsigned i = 0; i < h; ++i)
-        for (unsigned j = 0; j < w; ++j)
-        {
-            float val = plane[i * plane_stride + j] / 255.f;
-            buf[2 + (i + 3) * MTX_STRIDE(buf_stride) + j] = val;
-        }
+        memcpy(buf + 2 + (i + 3) * buf_stride, plane + i * plane_stride, w);
     expand_matrix(buf, w, h, buf_stride);
-
-#if 0
-    for (unsigned i = 0; i < h + 5; ++i)
-    {
-        for (unsigned j = 0; j < MTX_STRIDE(buf_stride); ++j)
-            fprintf(stderr, "%.5f ", buf[i * MTX_STRIDE(buf_stride) + j]);
-        fprintf(stderr, "\n");
-    }
-#endif
 }
 
 static inline float
@@ -1411,14 +1397,14 @@ modulo(float const x, float const y)
 }
 
 static inline struct vec4f
-gather4(float const *mtx, int const x, int const y, ptrdiff_t const stride)
+gather4(uint8_t const *mtx, int const x, int const y, ptrdiff_t const stride)
 {
     return (struct vec4f)
     {
-        .a = mtx[(y + 1) * MTX_STRIDE(stride) + x + 0],
-        .b = mtx[(y + 1) * MTX_STRIDE(stride) + x + 1],
-        .c = mtx[(y + 0) * MTX_STRIDE(stride) + x + 1],
-        .d = mtx[(y + 0) * MTX_STRIDE(stride) + x + 0],
+        .a = mtx[(y + 1) * stride + x + 0] / 255.f,
+        .b = mtx[(y + 1) * stride + x + 1] / 255.f,
+        .c = mtx[(y + 0) * stride + x + 1] / 255.f,
+        .d = mtx[(y + 0) * stride + x + 0] / 255.f,
     };
 }
 
@@ -1439,44 +1425,61 @@ extern void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
                                         int32_t *bptr,
                                         uint32_t *cptr);
 
+extern void vlc_ravu_shuffle_weights_avx512(int16_t *shuf_weights, int16_t const *weights,
+                                            unsigned width, unsigned height);
+
+extern void vlc_ravu_compute_pixels_avx512(uint8_t *omtx, uint8_t const *imtx,
+                                           int16_t const *weights,
+                                           unsigned width, unsigned height,
+                                           ptrdiff_t stride, ptrdiff_t wstride);
+
 #define fprintf(...)
 static inline void
-Filter_pass_0(float *omtx, float const *imtx,
+Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
+              int16_t *weights, int16_t *shuf_weights,
               unsigned const width, unsigned const height,
               ptrdiff_t const stride)
 {
+    ptrdiff_t const wstride = 18 * stride;
     for (unsigned y = 0; y < height; ++y)
     {
         for (unsigned x = 0; x < width; ++x)
         {
+#if 0
+            for (unsigned i = 0; i < 64; ++i)
+            {
+                for (unsigned j = 0; j < 18; ++j)
+                {
+                    weights[i * 18 + j] = j * 18 + i % 32;
+                    printf("%X ", weights[i * 18 + j]);
+                }
+                printf("\n");
+            }
+            printf("\n");
+            int16_t shuffled_weights[64*18];
+            vlc_ravu_shuffle_weights_avx512(shuffled_weights, weights, 32, 2);
+            for (unsigned i = 0; i < 18; ++i)
+            {
+                for (unsigned j = 0; j < 64; ++j)
+                    printf("%X ", shuffled_weights[i * 64 + j]);
+                printf("\n");
+            }
+#endif
+
             uint32_t a_;
             int32_t b_;
             uint32_t d_;
-#if 0
-            for (int i = 0; i < 6; ++i)
-            {
-                for (int j = 0; j < 6; ++j)
-                    if (i == 2 && j == 2)
-                        fprintf(stderr, "xx ");
-                    else
-                        fprintf(stderr, "%2X ", pixels[i * 8 + j]);
-                fprintf(stderr, "\n");
-            }
-#endif
-            float pixels_f[6 * 6];
+
             uint8_t pixels[6 * 8] = {0};
             for (int i = 0; i < 6; ++i)
                 for (int j = 0; j < 6; ++j)
-                    pixels_f[i * 6 + j] = imtx[(int)x + (i - 2) * MTX_STRIDE(stride) + (j - 2)];
-            for (int i = 0; i < 6; ++i)
-                for (int j = 0; j < 6; ++j)
-                    pixels[i * 8 + j] = roundf(pixels_f[i * 6 + j] * 255.f);
+                    pixels[i * 8 + j] =
+                        imtx[(int)x + (i - 2) * stride + (j - 2)];
             vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
 
             float a = a_ / (255.f * 255.f);
             float b = b_ / (255.f * 255.f);
             float d = d_ / (255.f * 255.f);
-            // fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -1499,13 +1502,12 @@ Filter_pass_0(float *omtx, float const *imtx,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
-            if (y == 6 && x == 0)
-            {
-                fprintf(stderr, "THIS ONE!!!\n", coord_y);
-                fprintf(stderr, "coord_y => %f\n", coord_y);
-            }
 
-// #define fprintf(...)
+#if 1
+            memcpy(weights + y * wstride + x * 18,
+                   lut_weights + (int)floorf(coord_y) * 18,
+                   18 * sizeof(int16_t));
+#else
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
@@ -1533,28 +1535,56 @@ Filter_pass_0(float *omtx, float const *imtx,
             res = ROUND2(res, 15);
             res = VLC_CLIP(res, 0, 255);
             omtx[x] = res / 255.f;
-// #undef fprintf
+#endif
         }
-        expand_line(omtx, width);
-        imtx += MTX_STRIDE(stride);
-        omtx += MTX_STRIDE(stride);
+        imtx += stride;
     }
-    omtx -= height * MTX_STRIDE(stride) + 2;
-    memcpy(omtx - 1 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 2 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx - 3 * MTX_STRIDE(stride), omtx, stride);
-    memcpy(omtx + (height + 0) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 1) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
-    memcpy(omtx + (height + 2) * MTX_STRIDE(stride),
-           omtx + (height - 1) * MTX_STRIDE(stride), stride);
+
+    imtx -= height * stride;
+#if 0
+    for (unsigned i = 0; i < height; ++i)
+    {
+        for (unsigned j = 0; j < width; ++j)
+        {
+            for (unsigned k = 0; k < 18; ++k)
+                printf("%04X ", weights[(i * stride + j) * 18 + k]);
+            puts("");
+        }
+        puts("");
+        puts("");
+    }
+#endif
+    vlc_ravu_shuffle_weights_avx512(shuf_weights, weights, stride, height);
+#if 0
+    for (unsigned i = 0; i < height; ++i)
+    {
+        for (unsigned j = 0; j < stride; j += 32)
+        {
+            printf("x=%d y=%d\n", j, i);
+            for (unsigned k = 0; k < 18; ++k)
+            {
+                for (unsigned l = 0; l < 32; ++l)
+                    printf("%04X ", shuf_weights[i * wstride + j * 18 + k * 32 + l]);
+                puts("");
+            }
+            puts("");
+            puts("");
+        }
+    }
+#endif
+    vlc_ravu_compute_pixels_avx512(omtx, imtx, shuf_weights, width, height, stride, wstride);
+    omtx -= 2;
+    memcpy(omtx - 1 * stride, omtx, stride);
+    memcpy(omtx - 2 * stride, omtx, stride);
+    memcpy(omtx - 3 * stride, omtx, stride);
+    memcpy(omtx + (height + 0) * stride, omtx + (height - 1) * stride, stride);
+    memcpy(omtx + (height + 1) * stride, omtx + (height - 1) * stride, stride);
+    memcpy(omtx + (height + 2) * stride, omtx + (height - 1) * stride, stride);
 }
 #undef fprintf
 
-#define fprintf(...)
 static inline void
-Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
+Filter_pass_1(uint8_t *omtx, uint8_t const *imtx, uint8_t const *pass_0,
               unsigned const width, unsigned const height,
               ptrdiff_t const stride)
 {
@@ -1569,19 +1599,19 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             struct vec4f g4 = gather4(pass_0 + x,  0, -2, stride);
             struct vec4f g5 = gather4(pass_0 + x,  0,  0, stride);
 
-            float sample00 = imtx[ 0 * MTX_STRIDE(stride) + x - 2];
-            float sample02 = imtx[+1 * MTX_STRIDE(stride) + x - 1];
-            float sample24 = imtx[-2 * MTX_STRIDE(stride) + x    ];
-            float sample31 = imtx[-2 * MTX_STRIDE(stride) + x + 1];
-            float sample23 = imtx[+1 * MTX_STRIDE(stride) + x + 2];
-            float sample35 = imtx[ 0 * MTX_STRIDE(stride) + x + 3];
+            float sample00 = imtx[ 0 * stride + x - 2] / 255.f;
+            float sample02 = imtx[+1 * stride + x - 1] / 255.f;
+            float sample24 = imtx[-2 * stride + x    ] / 255.f;
+            float sample31 = imtx[-2 * stride + x + 1] / 255.f;
+            float sample23 = imtx[+1 * stride + x + 2] / 255.f;
+            float sample35 = imtx[ 0 * stride + x + 3] / 255.f;
 
-            float sample18 = pass_0[-2 * MTX_STRIDE(stride) + x - 1];
-            float sample03 = pass_0[+1 * MTX_STRIDE(stride) + x - 1];
-            float sample30 = pass_0[-3 * MTX_STRIDE(stride) + x    ];
-            float sample05 = pass_0[+2 * MTX_STRIDE(stride) + x    ];
-            float sample34 = pass_0[-1 * MTX_STRIDE(stride) + x + 2];
-            float sample29 = pass_0[ 0 * MTX_STRIDE(stride) + x + 2];
+            float sample18 = pass_0[-2 * stride + x - 1] / 255.f;
+            float sample03 = pass_0[+1 * stride + x - 1] / 255.f;
+            float sample30 = pass_0[-3 * stride + x    ] / 255.f;
+            float sample05 = pass_0[+2 * stride + x    ] / 255.f;
+            float sample34 = pass_0[-1 * stride + x + 2] / 255.f;
+            float sample29 = pass_0[ 0 * stride + x + 2] / 255.f;
 
             struct vec3f abd = {0};
             float gx, gy;
@@ -1653,7 +1683,6 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
             float a = abd.a;
             float b = abd.b;
             float d = abd.c;
-            fprintf(stderr, "a=%f b=%f d=%f\n", a, b, d);
 
             float T = a + d;
             float D = a * d - b * b;
@@ -1676,64 +1705,41 @@ Filter_pass_1(float *omtx, float const *imtx, float const *pass_0,
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
 
             float coord_y = (angle * 9.f + strength) * 3.f + coherence + .5f;
-            fprintf(stderr, "coord_y => %f\n", coord_y);
 
             int32_t res = 0;
             int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
 
             res += (int)(roundf(sample00 * 255.f) + roundf(sample35 * 255.f)) * weights[0];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample00 * 255.f), (int)roundf(sample35 * 255.f), weights[0], res);
             res += (int)(roundf(g3.a * 255.f) + roundf(sample34 * 255.f)) * weights[1];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.a * 255.f), (int)roundf(sample34 * 255.f), weights[1], res);
             res += (int)(roundf(sample02 * 255.f) + roundf(g2.c * 255.f)) * weights[2];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample02 * 255.f), (int)roundf(g2.c * 255.f), weights[2], res);
             res += (int)(roundf(sample03 * 255.f) + roundf(g4.c * 255.f)) * weights[3];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample03 * 255.f), (int)roundf(g4.c * 255.f), weights[3], res);
             res += (int)(roundf(g1.a * 255.f) + roundf(sample31 * 255.f)) * weights[4];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.a * 255.f), (int)roundf(sample31 * 255.f), weights[4], res);
             res += (int)(roundf(sample05 * 255.f) + roundf(sample30 * 255.f)) * weights[5];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(sample05 * 255.f), (int)roundf(sample30 * 255.f), weights[5], res);
 
             res += (int)(roundf(g3.d * 255.f) + roundf(sample29 * 255.f)) * weights[6];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.d * 255.f), (int)roundf(sample29 * 255.f), weights[6], res);
             res += (int)(roundf(g0.a * 255.f) + roundf(g2.b * 255.f)) * weights[7];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.a * 255.f), (int)roundf(g2.b * 255.f), weights[7], res);
             res += (int)(roundf(g3.b * 255.f) + roundf(g4.b * 255.f)) * weights[8];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.b * 255.f), (int)roundf(g4.b * 255.f), weights[8], res);
             res += (int)(roundf(g1.d * 255.f) + roundf(g2.d * 255.f)) * weights[9];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.d * 255.f), (int)roundf(g2.d * 255.f), weights[9], res);
             res += (int)(roundf(g5.a * 255.f) + roundf(g4.d * 255.f)) * weights[10];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.a * 255.f), (int)roundf(g4.d* 255.f), weights[10], res);
             res += (int)(roundf(g1.b * 255.f) + roundf(sample24 * 255.f)) * weights[11];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.b * 255.f), (int)roundf(sample24 * 255.f), weights[11], res);
 
             res += (int)(roundf(g0.d * 255.f) + roundf(sample23 * 255.f)) * weights[12];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.d * 255.f), (int)roundf(sample23 * 255.f), weights[12], res);
             res += (int)(roundf(g3.c * 255.f) + roundf(g5.c * 255.f)) * weights[13];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g3.c * 255.f), (int)roundf(g5.c * 255.f), weights[13], res);
             res += (int)(roundf(g0.b * 255.f) + roundf(g2.a * 255.f)) * weights[14];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g0.b * 255.f), (int)roundf(g2.a * 255.f), weights[14], res);
             res += (int)(roundf(g5.d * 255.f) + roundf(g4.a * 255.f)) * weights[15];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.d * 255.f), (int)roundf(g4.a * 255.f), weights[15], res);
             res += (int)(roundf(g1.c * 255.f) + roundf(g0.c * 255.f)) * weights[16];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g1.c * 255.f), (int)roundf(g0.c * 255.f), weights[16], res);
             res += (int)(roundf(g5.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
-            fprintf(stderr, "(%d + %d) * %d = %d\n", (int)roundf(g5.b * 255.f), (int)roundf(sample18 * 255.f), weights[17], res);
 
-            res = ROUND2(res, 15);
-            res = VLC_CLIP(res, 0, 255);
-            omtx[x] = res / 255.f;
-            fprintf(stderr, "res ===> %f\n\n", omtx[x]);
+            omtx[x] = VLC_CLIP(ROUND2(res, 15), 0, 255);
         }
-        pass_0 += MTX_STRIDE(stride);
-        imtx += MTX_STRIDE(stride);
-        omtx += MTX_STRIDE(stride);
+        pass_0 += stride;
+        imtx += stride;
+        omtx += stride;
     }
 }
-#undef fprintf
 
 static inline void
-Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
+Filter_pass_2(uint8_t *omtx, uint8_t const *imtx, uint8_t const *pass_0,
               unsigned width, unsigned height, ptrdiff_t const stride)
 {
     for (unsigned y = 0; y < height; ++y)
@@ -1747,19 +1753,19 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
             struct vec4f g4 = gather4(pass_0 + x, -1, +1, stride);
             struct vec4f g5 = gather4(pass_0 + x,  0, -1, stride);
 
-            float sample18 = imtx[-1 * MTX_STRIDE(stride) + x - 1];
-            float sample03 = imtx[+2 * MTX_STRIDE(stride) + x - 1];
-            float sample30 = imtx[-2 * MTX_STRIDE(stride) + x + 0];
-            float sample05 = imtx[+3 * MTX_STRIDE(stride) + x + 0];
-            float sample34 = imtx[ 0 * MTX_STRIDE(stride) + x + 2];
-            float sample29 = imtx[+1 * MTX_STRIDE(stride) + x + 2];
+            float sample18 = imtx[-1 * stride + x - 1] / 255.f;
+            float sample03 = imtx[+2 * stride + x - 1] / 255.f;
+            float sample30 = imtx[-2 * stride + x + 0] / 255.f;
+            float sample05 = imtx[+3 * stride + x + 0] / 255.f;
+            float sample34 = imtx[ 0 * stride + x + 2] / 255.f;
+            float sample29 = imtx[+1 * stride + x + 2] / 255.f;
 
-            float sample00 = pass_0[ 0 * MTX_STRIDE(stride) + x - 3];
-            float sample02 = pass_0[+1 * MTX_STRIDE(stride) + x - 2];
-            float sample24 = pass_0[-2 * MTX_STRIDE(stride) + x - 1];
-            float sample31 = pass_0[-2 * MTX_STRIDE(stride) + x + 0];
-            float sample23 = pass_0[+1 * MTX_STRIDE(stride) + x + 1];
-            float sample35 = pass_0[ 0 * MTX_STRIDE(stride) + x + 2];
+            float sample00 = pass_0[ 0 * stride + x - 3] / 255.f;
+            float sample02 = pass_0[+1 * stride + x - 2] / 255.f;
+            float sample24 = pass_0[-2 * stride + x - 1] / 255.f;
+            float sample31 = pass_0[-2 * stride + x + 0] / 255.f;
+            float sample23 = pass_0[+1 * stride + x + 1] / 255.f;
+            float sample35 = pass_0[ 0 * stride + x + 2] / 255.f;
 
             struct vec3f abd = {0};
             float gx, gy;
@@ -1878,30 +1884,28 @@ Filter_pass_2(float *omtx, float const *imtx, float const *pass_0,
             res += (int)(roundf(g4.c * 255.f) + roundf(g3.c * 255.f)) * weights[16];
             res += (int)(roundf(g2.b * 255.f) + roundf(sample18 * 255.f)) * weights[17];
 
-            res = ROUND2(res, 15);
-            res = VLC_CLIP(res, 0, 255);
-            omtx[x] = res / 255.f;
+            omtx[x] = VLC_CLIP(ROUND2(res, 15), 0, 255);
         }
-        pass_0 += MTX_STRIDE(stride);
-        imtx += MTX_STRIDE(stride);
-        omtx += MTX_STRIDE(stride);
+        pass_0 += stride;
+        imtx += stride;
+        omtx += stride;
     }
 }
 
 static inline uint8_t
-get_pixel(float const *mtx,
+get_pixel(uint8_t const *mtx,
           float const x_, float const y_,
           ptrdiff_t const stride)
 {
     int const x = floorf(x_);
     int const y = floorf(y_);
-    return roundf(mtx[y * MTX_STRIDE(stride) + x] * 255.f);
+    return mtx[y * stride + x];
 }
 
 static inline void
 Filter_pass_final(uint8_t *output,
-                  float const *input, float const *pass_0,
-                  float const *pass_1, float const *pass_2,
+                  uint8_t const *input, uint8_t const *pass_0,
+                  uint8_t const *pass_1, uint8_t const *pass_2,
                   unsigned const width, unsigned const height,
                   ptrdiff_t const stride_in, ptrdiff_t const stride_out)
 {
@@ -1917,7 +1921,7 @@ Filter_pass_final(uint8_t *output,
             float fy = y / 2.f + .25f;
             float dir_x = fx - floorf(fx) - .5f;
             float dir_y = fy - floorf(fy) - .5f;
-            float const *imtx;
+            uint8_t const *imtx;
             if (dir_x < .0f)
                 imtx = dir_y < .0f ? input : pass_2;
             else
@@ -1929,8 +1933,10 @@ Filter_pass_final(uint8_t *output,
 }
 
 static inline void
-Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
-             unsigned const w, unsigned const h,
+Filter_debug(uint8_t const *pass_0,
+             uint8_t const *pass_1,
+             uint8_t const *pass_2,
+             unsigned const w, unsigned const h, ptrdiff_t pstride,
              uint8_t const *input, ptrdiff_t const istride,
              uint8_t const *output, ptrdiff_t const ostride)
 {
@@ -1938,13 +1944,7 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
     for (unsigned i = 0; i < h; ++i)
     {
         for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%.05f ", pass_0[i * (w + 5) + j]);
-        fprintf(stderr, "\n");
-    }
-    for (unsigned i = 0; i < h; ++i)
-    {
-        for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%02X ", (int)roundf(pass_0[i * (w + 5) + j] * 255.f));
+            fprintf(stderr, "%02X ", pass_0[i * pstride + j]);
         fprintf(stderr, "\n");
     }
 
@@ -1952,13 +1952,7 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
     for (unsigned i = 0; i < h; ++i)
     {
         for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%.05f ", pass_1[i * (w + 5) + j]);
-        fprintf(stderr, "\n");
-    }
-    for (unsigned i = 0; i < h; ++i)
-    {
-        for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%02X ", (int)roundf(pass_1[i * (w + 5) + j] * 255.f));
+            fprintf(stderr, "%02X ", pass_1[i * pstride + j]);
         fprintf(stderr, "\n");
     }
 
@@ -1966,13 +1960,7 @@ Filter_debug(float const *pass_0, float const *pass_1, float const *pass_2,
     for (unsigned i = 0; i < h; ++i)
     {
         for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%.05f ", pass_2[i * (w + 5) + j]);
-        fprintf(stderr, "\n");
-    }
-    for (unsigned i = 0; i < h; ++i)
-    {
-        for (unsigned j = 0; j < w; ++j)
-            fprintf(stderr, "%02X ", (int)roundf(pass_2[i * (w + 5) + j] * 255.f));
+            fprintf(stderr, "%02X ", pass_2[i * pstride + j]);
         fprintf(stderr, "\n");
     }
 
@@ -2024,10 +2012,10 @@ Filter(filter_t *filter, picture_t *ipic)
     picture_CopyProperties(opic, ipic);
 
     unsigned const extw = sys->width + 5;
-    float *input  = sys->input + 3 * extw + 2;
-    float *pass_0 = sys->pass_0 + 3 * extw + 2;
-    float *pass_1 = sys->pass_1;
-    float *pass_2 = sys->pass_2;
+    uint8_t *input  = sys->input + 3 * sys->stride + 2;
+    uint8_t *pass_0 = sys->pass_0 + 3 * sys->stride + 2;
+    uint8_t *pass_1 = sys->pass_1;
+    uint8_t *pass_2 = sys->pass_2;
 
 #if ENABLE_BENCH
     struct timeval tv_start;
@@ -2036,18 +2024,18 @@ Filter(filter_t *filter, picture_t *ipic)
 
     Filter_prepare(sys->input, ipic->Y_PIXELS,
                    sys->width, sys->height,
-                   extw * sizeof(float), ipic->Y_PITCH);
+                   sys->stride, ipic->Y_PITCH);
 
-    Filter_pass_0(pass_0, input,
-                  sys->width, sys->height, extw * sizeof(float));
+    Filter_pass_0(pass_0, input, sys->weights, sys->shuf_weights,
+                  sys->width, sys->height, sys->stride);
     Filter_pass_1(pass_1, input, pass_0,
-                  sys->width, sys->height, extw * sizeof(float));
+                  sys->width, sys->height, sys->stride);
     Filter_pass_2(pass_2, input, pass_0,
-                  sys->width, sys->height, extw * sizeof(float));
+                  sys->width, sys->height, sys->stride);
 
     Filter_pass_final(opic->Y_PIXELS, input, pass_0, pass_1, pass_2,
                       sys->width, sys->height,
-                      extw * sizeof(float), opic->Y_PITCH);
+                      sys->stride, opic->Y_PITCH);
 
 #if ENABLE_BENCH
     struct timeval tv_end;
@@ -2065,7 +2053,7 @@ Filter(filter_t *filter, picture_t *ipic)
 
 #if 0
     msg_Info(filter, "--------------------- START ------------------");
-    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height,
+    Filter_debug(pass_0, pass_1, pass_2, sys->width, sys->height, sys->stride,
                  ipic->Y_PIXELS, ipic->Y_PITCH, opic->Y_PIXELS, opic->Y_PITCH);
     msg_Info(filter, "---------------------- END -------------------");
 #else
@@ -2128,6 +2116,8 @@ Close(vlc_object_t *obj)
 #if ENABLE_BENCH
     free(sys->tv_delta);
 #endif
+    free(sys->shuf_weights);
+    free(sys->weights);
     free(sys->pass_2);
     free(sys->pass_1);
     free(sys->pass_0);
@@ -2161,11 +2151,14 @@ Open(vlc_object_t *obj)
     unsigned const h = filter->fmt_in.video.i_visible_height;
     unsigned const extw = w + 5;
     unsigned const exth = h + 6;
+    ptrdiff_t const stride = ((extw + 31) & ~31);
 
-    sys->input  = malloc(extw * exth * sizeof(float)); if (!sys->input)  goto error;
-    sys->pass_0 = malloc(extw * exth * sizeof(float)); if (!sys->pass_0) goto error;
-    sys->pass_1 = malloc(extw * exth * sizeof(float)); if (!sys->pass_1) goto error;
-    sys->pass_2 = malloc(extw * exth * sizeof(float)); if (!sys->pass_2) goto error;
+    sys->input  = malloc(exth * stride); if (!sys->input)  goto error;
+    sys->pass_0 = malloc(exth * stride); if (!sys->pass_0) goto error;
+    sys->pass_1 = malloc(exth * stride); if (!sys->pass_1) goto error;
+    sys->pass_2 = malloc(exth * stride); if (!sys->pass_2) goto error;
+    sys->weights = malloc(18 * stride * h * sizeof(int16_t)); if (!sys->weights) goto error;
+    sys->shuf_weights = malloc(18 * stride * h * sizeof(int16_t)); if (!sys->shuf_weights) goto error;
 
 #if ENABLE_BENCH
     sys->tv_delta = malloc(4096 * sizeof(struct timeval));
@@ -2189,6 +2182,7 @@ Open(vlc_object_t *obj)
 
     sys->width = w;
     sys->height = h;
+    sys->stride = stride;
     filter->pf_video_filter = Filter;
     goto ret;
 

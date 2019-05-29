@@ -147,7 +147,7 @@ SWAP m7, m23
     packssdw            m3, m5
     packusdw            m8, m9
 ; attempt to fix blindly cause can't fucking debug.......
-    vpbroadcastd       m14, [dd_0x8000]
+    vpbroadcastd       m14, [base+dd_0x8000]
     psubd               m2, m14
     ;psubd               m3, m14
     psubd               m8, m14
@@ -155,15 +155,15 @@ SWAP m7, m23
     packssdw            m2, m30
     packssdw            m3, m30
     packssdw            m8, m30
-    vextracti128      xmm4, m2, 1
-    vextracti128      xmm7, m3, 1
-    vextracti128     xmm10, m8, 1
-    vextracti128      xmm5, m2, 2
-    vextracti128      xmm8, m3, 2
-    vextracti128     xmm11, m8, 2
-    vextracti128      xmm6, m2, 3
-    vextracti128      xmm9, m3, 3
-    vextracti128     xmm12, m8, 3
+    vextracti32x4      xmm4, m2, 1
+    vextracti32x4      xmm7, m3, 1
+    vextracti32x4     xmm10, m8, 1
+    vextracti32x4      xmm5, m2, 2
+    vextracti32x4      xmm8, m3, 2
+    vextracti32x4     xmm11, m8, 2
+    vextracti32x4      xmm6, m2, 3
+    vextracti32x4      xmm9, m3, 3
+    vextracti32x4     xmm12, m8, 3
 .vnni:
 INIT_XMM avx512
 SWAP m31, m15
