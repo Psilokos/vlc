@@ -56,6 +56,7 @@
 #endif
 
 static uint32_t cpu_flags;
+static uint32_t cpu_mask = 0;
 
 #if defined (__i386__) || defined (__x86_64__) || defined (__powerpc__) \
  || defined (__ppc__) || defined (__ppc64__) || defined (__powerpc64__)
@@ -259,7 +260,17 @@ VLC_WEAK unsigned vlc_CPU(void)
 {
     static vlc_once_t once = VLC_STATIC_ONCE;
     vlc_once(&once, vlc_CPU_init);
-    return cpu_flags;
+    return cpu_flags & ~cpu_mask;
+}
+
+VLC_WEAK void vlc_CPU_mask(unsigned cap)
+{
+    cpu_mask |= cap;
+}
+
+VLC_WEAK void vlc_CPU_unmask(unsigned cap)
+{
+    cpu_mask &= ~cap;
 }
 
 void vlc_CPU_dump (vlc_object_t *obj)

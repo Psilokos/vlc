@@ -41,6 +41,7 @@
 
 #ifdef CPU_FLAGS
 static uint32_t cpu_flags = 0;
+static uint32_t cpu_mask = 0;
 
 static void vlc_CPU_init (void)
 {
@@ -128,11 +129,21 @@ unsigned vlc_CPU (void)
     static pthread_once_t once = PTHREAD_ONCE_INIT;
 
     pthread_once (&once, vlc_CPU_init);
-    return cpu_flags;
+    return cpu_flags & ~cpu_mask;
 }
-#else /* CPU_FLAGS */
-unsigned vlc_CPU (void)
+
+void vlc_CPU_mask(unsigned cap)
 {
-    return 0;
+    cpu_mask |= cap;
 }
+
+void vlc_CPU_unmask(unsigned cap)
+{
+    cpu_mask &= ~cap;
+}
+
+#else /* CPU_FLAGS */
+unsigned vlc_CPU (void) { return 0; }
+void vlc_CPU_mask (unsigned) { }
+void vlc_CPU_unmask (unsigned) { }
 #endif
