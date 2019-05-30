@@ -27,6 +27,8 @@
 # define VLC_CPU_H 1
 
 VLC_API unsigned vlc_CPU(void);
+VLC_API void vlc_CPU_mask(unsigned cap);
+VLC_API void vlc_CPU_unmask(unsigned cap);
 
 # if defined (__i386__) || defined (__x86_64__)
 #  define HAVE_FPU 1
