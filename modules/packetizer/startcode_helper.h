@@ -47,21 +47,22 @@
 #if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
 
 __attribute__ ((__target__ ("sse2")))
-static inline const uint8_t * startcode_FindAnnexB_SSE2( const uint8_t *p, const uint8_t *end )
+static inline uint8_t const *
+startcode_FindAnnexB_SSE2(uint8_t const *p, uint8_t const *end)
 {
     /* First align to 16 */
     /* Skipping this step and doing unaligned loads isn't faster */
-    const uint8_t *alignedend = p + 16 - ((intptr_t)p & 15);
+    uint8_t const *alignedend = p + 16 - ((intptr_t)p & 15);
     for (end -= 3; p < alignedend && p <= end; p++) {
         if (p[0] == 0 && p[1] == 0 && p[2] == 1)
             return p;
     }
 
-    if( p == end )
+    if (p == end)
         return NULL;
 
     alignedend = end - ((intptr_t) end & 15);
-    if( alignedend > p )
+    if (alignedend > p)
     {
 #ifdef CAN_COMPILE_SSE2
         asm volatile(
@@ -69,9 +70,9 @@ static inline const uint8_t * startcode_FindAnnexB_SSE2( const uint8_t *p, const
             ::: "xmm1"
         );
 #else
-        __m128i zeros = _mm_set1_epi8( 0x00 );
+        __m128i zeros = _mm_set1_epi8(0x00);
 #endif
-        for( ; p < alignedend; p += 16)
+        for (; p < alignedend; p += 16)
         {
             uint32_t match;
 #ifdef CAN_COMPILE_SSE2
@@ -113,9 +114,10 @@ static inline const uint8_t * startcode_FindAnnexB_SSE2( const uint8_t *p, const
  * and i believe the trick originated from
  * https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
  */
-static inline const uint8_t * startcode_FindAnnexB_Bits( const uint8_t *p, const uint8_t *end )
+static inline uint8_t const *
+startcode_FindAnnexB_Bits(uint8_t const *p, uint8_t const *end)
 {
-    const uint8_t *a = p + 4 - ((intptr_t)p & 3);
+    uint8_t const *a = p + 4 - ((intptr_t)p & 3);
 
     for (end -= 3; p < a && p <= end; p++) {
         if (p[0] == 0 && p[1] == 0 && p[2] == 1)
@@ -123,7 +125,7 @@ static inline const uint8_t * startcode_FindAnnexB_Bits( const uint8_t *p, const
     }
 
     for (end -= 3; p < end; p += 4) {
-        uint32_t x = *(const uint32_t*)p;
+        uint32_t x = *(uint32_t const *)p;
         if ((x - 0x01010101) & (~x) & 0x80808080)
         {
             /* matching DW isn't faster */
@@ -140,13 +142,15 @@ static inline const uint8_t * startcode_FindAnnexB_Bits( const uint8_t *p, const
 }
 #undef TRY_MATCH
 
+
 #if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
-static inline const uint8_t * startcode_FindAnnexB( const uint8_t *p, const uint8_t *end )
+static inline uint8_t const *
+startcode_FindAnnexB(uint8_t const *ptr, uint8_t const *end)
 {
     if (vlc_CPU_SSE2())
-        return startcode_FindAnnexB_SSE2(p, end);
+        return startcode_FindAnnexB_SSE2(ptr, end);
     else
-        return startcode_FindAnnexB_Bits(p, end);
+        return startcode_FindAnnexB_Bits(ptr, end);
 }
 #else
     #define startcode_FindAnnexB startcode_FindAnnexB_Bits
