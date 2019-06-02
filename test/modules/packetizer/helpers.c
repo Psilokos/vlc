@@ -94,6 +94,16 @@ static int run_annexb_sets( const uint8_t *p_set, const uint8_t *p_end,
         if( i_ret != 0 )
             return i_ret;
     }
+# if __x86_64__
+    if (vlc_CPU_AVX2())
+    {
+        printf("checking AVX2 asm:\n");
+        i_ret = check_set( p_set, p_end, p_results, i_results, i_results_offset,
+                           vlcpriv_startcode_FindAnnexB_avx2 );
+        if( i_ret != 0 )
+            return i_ret;
+    }
+# endif
 #endif
 
     return 0;
