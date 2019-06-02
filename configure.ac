@@ -95,16 +95,18 @@ HAVE_IOS="0"
 HAVE_OSX="0"
 HAVE_TVOS="0"
 
-dnl  Set x86 asm flags and defines
+dnl  Set x86 flags and defines
 X86ASMFLAGS=""
 case "${host_cpu}" in
     i?86)
     X86ASMFLAGS="-f elf32"
     X86ASMDEFS="-DARCH_X86_32=1 -DARCH_X86_64=0"
+    AX_APPEND_FLAG([-DARCH_X86_32], [CFLAGS])
         ;;
     x86_64)
     X86ASMFLAGS="-f elf64"
     X86ASMDEFS="-DARCH_X86_32=0 -DARCH_X86_64=1"
+    AX_APPEND_FLAG([-DARCH_X86_64], [CFLAGS])
         ;;
 esac
 
