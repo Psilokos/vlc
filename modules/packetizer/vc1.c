@@ -160,7 +160,8 @@ static int Open( vlc_object_t *p_this )
     p_dec->pf_get_cc = GetCc;
 
     packetizer_Init( &p_sys->packetizer,
-                     p_vc1_startcode, sizeof(p_vc1_startcode), startcode_FindAnnexB,
+                     p_vc1_startcode, sizeof(p_vc1_startcode),
+                     startcode_FindAnnexB_helper(),
                      NULL, 0, 4,
                      PacketizeReset, PacketizeParse, PacketizeValidate, PacketizeDrain,
                      p_dec );
