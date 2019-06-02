@@ -72,12 +72,21 @@ uint8_t const *vlcpriv_startcode_FindAnnexB_sse2(uint8_t const *ptr,
                                                  uint8_t const *end);
 uint8_t const *vlcpriv_startcode_FindAnnexB_ssse3(uint8_t const *ptr,
                                                   uint8_t const *end);
+# ifdef __x86_64__
+uint8_t const *vlcpriv_startcode_FindAnnexB_avx2(uint8_t const *ptr,
+                                                 uint8_t const *end);
+# endif
 #endif
 
 static inline block_startcode_helper_t
 startcode_FindAnnexB_helper(void)
 {
 #if defined(__i386__) || defined(__x86_64__)
+# ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return vlcpriv_startcode_FindAnnexB_avx2;
+    else
+# endif
     if (vlc_CPU_SSSE3())
         return vlcpriv_startcode_FindAnnexB_ssse3;
     else if (vlc_CPU_SSE2())
