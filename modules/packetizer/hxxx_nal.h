@@ -57,6 +57,7 @@ static inline bool hxxx_strip_AnnexB_startcode( const uint8_t **pp_data, size_t 
 
 typedef struct
 {
+    block_startcode_helper_t pf_startcode_FindAnnexB;
     const uint8_t *p_head;
     const uint8_t *p_tail;
     uint8_t i_nal_length_size;
@@ -65,6 +66,7 @@ typedef struct
 static inline void hxxx_iterator_init( hxxx_iterator_ctx_t *p_ctx, const uint8_t *p_data, size_t i_data,
                                        uint8_t i_nal_length_size )
 {
+    p_ctx->pf_startcode_FindAnnexB = startcode_FindAnnexB_helper();
     p_ctx->p_head = p_data;
     p_ctx->p_tail = p_data + i_data;
     if( vlc_popcount(i_nal_length_size) == 1 && i_nal_length_size <= 4 )
@@ -100,11 +102,13 @@ static inline bool hxxx_annexb_iterate_next( hxxx_iterator_ctx_t *p_ctx, const u
     if( !p_ctx->p_head )
         return false;
 
-    p_ctx->p_head = startcode_FindAnnexB( p_ctx->p_head, p_ctx->p_tail );
+    p_ctx->p_head = p_ctx->pf_startcode_FindAnnexB(p_ctx->p_head,
+                                                   p_ctx->p_tail);
     if( !p_ctx->p_head )
         return false;
 
-    const uint8_t *p_end = startcode_FindAnnexB( p_ctx->p_head + 3, p_ctx->p_tail );
+    const uint8_t *p_end = p_ctx->pf_startcode_FindAnnexB(p_ctx->p_head + 3,
+                                                          p_ctx->p_tail);
     if( !p_end )
         p_end = p_ctx->p_tail;
 

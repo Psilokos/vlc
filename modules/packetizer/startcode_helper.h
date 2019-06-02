@@ -20,6 +20,7 @@
 #ifndef VLC_STARTCODE_HELPER_H_
 #define VLC_STARTCODE_HELPER_H_
 
+#include <vlc_block_helper.h>
 #include <vlc_cpu.h>
 
 #if !defined(CAN_COMPILE_SSE2) && defined(HAVE_SSE2_INTRINSICS)
@@ -143,17 +144,15 @@ startcode_FindAnnexB_Bits(uint8_t const *p, uint8_t const *end)
 #undef TRY_MATCH
 
 
-#if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
-static inline uint8_t const *
-startcode_FindAnnexB(uint8_t const *ptr, uint8_t const *end)
+static inline block_startcode_helper_t
+startcode_FindAnnexB_helper(void)
 {
+#if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
     if (vlc_CPU_SSE2())
-        return startcode_FindAnnexB_SSE2(ptr, end);
+        return startcode_FindAnnexB_SSE2;
     else
-        return startcode_FindAnnexB_Bits(ptr, end);
-}
-#else
-    #define startcode_FindAnnexB startcode_FindAnnexB_Bits
 #endif
+        return startcode_FindAnnexB_Bits;
+}
 
 #endif
