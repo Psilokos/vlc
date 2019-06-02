@@ -212,7 +212,8 @@ static int Open(vlc_object_t *p_this)
     INITQ(post);
 
     packetizer_Init(&p_sys->packetizer,
-                    p_hevc_startcode, sizeof(p_hevc_startcode), startcode_FindAnnexB,
+                    p_hevc_startcode, sizeof(p_hevc_startcode),
+                    startcode_FindAnnexB_helper(),
                     p_hevc_startcode, 1, 5,
                     PacketizeReset, PacketizeParse, PacketizeValidate, PacketizeDrain,
                     p_dec);
