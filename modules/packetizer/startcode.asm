@@ -29,6 +29,109 @@ pd_0x00010000: times 4 dd 0x00010000
 
 SECTION .text
 
+%if ARCH_X86_64
+
+INIT_YMM avx2
+cglobal startcode_FindAnnexB, 2, 7, 5, ptr, end, size, msk0, msk1, msk2
+%define base r6q-shuf_pad2dw
+    lea            r6q, [shuf_pad2dw]
+    vbroadcasti128  m0, [base+shuf_pad2dw]
+    vbroadcasti128  m1, [base+pd_0x00010000]
+    mov          sizeq, endq
+    sub          sizeq, ptrq
+    cmp          sizeq, 28
+    jl .xmm
+
+.loop:
+    movu           xm2, [ptrq+ 0]
+    vinserti128     m2, [ptrq+12], 1
+    palignr         m3, m2, m2, 1
+    palignr         m4, m2, m2, 2
+    pshufb          m2, m0
+    pshufb          m3, m0
+    pshufb          m4, m0
+    pcmpeqd         m2, m1
+    pcmpeqd         m3, m1
+    pcmpeqd         m4, m1
+    movmskps     msk0d, m2
+    movmskps     msk1d, m3
+    movmskps     msk2d, m4
+    tzcnt          r3d, msk0d
+    tzcnt          r4d, msk1d
+    tzcnt          r5d, msk2d
+    cmp            r4d, r3d
+    cmovle         r3d, r4d
+    setle          r4b
+    cmp            r5d, r3d
+    cmovle         r3d, r5d
+    setle          r5b
+    test           r3d, 32
+    jz .found
+    add           ptrq, 24
+    sub          sized, 24
+    cmp          sized, 28
+    jge .loop
+
+INIT_XMM avx2
+.xmm:
+    cmp          sized, 16
+    jl .end
+    movu            m2, [ptrq]
+    palignr         m3, m2, m2, 1
+    palignr         m4, m2, m2, 2
+    pshufb          m2, m0
+    pshufb          m3, m0
+    pshufb          m4, m0
+    pcmpeqd         m2, m1
+    pcmpeqd         m3, m1
+    pcmpeqd         m4, m1
+    movmskps     msk0d, m2
+    movmskps     msk1d, m3
+    movmskps     msk2d, m4
+    tzcnt          r3d, msk0d
+    tzcnt          r4d, msk1d
+    tzcnt          r5d, msk2d
+    cmp            r4d, r3d
+    cmovle         r3d, r4d
+    setle          r4b
+    cmp            r5d, r3d
+    cmovle         r3d, r5d
+    setle          r5b
+    test           r3d, 32
+    jnz .end
+
+.found:
+    lea            r3d, [r3d*3]
+    mov            r6d, r4d
+    xor            r4d, r5d
+    and            r4d, r6d
+    shl            r5d, 1
+    or             r4d, r5d
+    add            r3d, r4d
+    lea            rax, [ptrq+r3q]
+    RET
+
+DEFINE_ARGS ptr, _, size, tmp
+.end:
+    sub          sized, 3
+    jl .ret_null
+.end_loop:
+    xor           tmpd, tmpd
+    test   word [ptrq], 0xFFFF
+    cmovz         tmpw, [ptrq+1]
+    xor           tmpd, 0x0100
+    jz .ret
+    inc           ptrq
+    dec          sized
+    jge .end_loop
+.ret_null:
+    xor           ptrq, ptrq
+.ret:
+    mov            rax, ptrq
+    RET
+
+%endif
+
 INIT_XMM ssse3
 cglobal startcode_FindAnnexB, 2, 7, 5, ptr, end, size, msk0, msk1, msk2
 %define base r6q-shuf_pad2dw
