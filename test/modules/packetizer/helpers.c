@@ -77,15 +77,16 @@ static int run_annexb_sets( const uint8_t *p_set, const uint8_t *p_end,
         return i_ret;
 
     /* Perform same tests on simd optimized code */
-    if( startcode_FindAnnexB_Bits != startcode_FindAnnexB )
+#if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
+    if (vlc_CPU_SSE2())
     {
         printf("checking asm:\n");
         i_ret = check_set( p_set, p_end, p_results, i_results, i_results_offset,
-                           startcode_FindAnnexB );
+                           startcode_FindAnnexB_SSE2 );
         if( i_ret != 0 )
             return i_ret;
     }
-    else printf("asm not built in, skipping test:\n");
+#endif
 
     return 0;
 }
