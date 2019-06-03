@@ -50,12 +50,12 @@ cglobal ravu_compute_pixels, 4, 13, 0, dst, src, wt, w, h, stride, wstride, \
     punpckhwd      m23, m16, m17
     punpcklwd      m24, m18, m19
     punpckhwd      m25, m18, m19
-    mova           m26, [wtq+0*32*2]
-    mova           m27, [wtq+1*32*2]
-    mova           m28, [wtq+2*32*2]
-    mova           m29, [wtq+3*32*2]
-    mova           m30, [wtq+4*32*2]
-    mova           m31, [wtq+5*32*2]
+    movu           m26, [wtq+0*32*2]
+    movu           m27, [wtq+1*32*2]
+    movu           m28, [wtq+2*32*2]
+    movu           m29, [wtq+3*32*2]
+    movu           m30, [wtq+4*32*2]
+    movu           m31, [wtq+5*32*2]
     vpdpwssds       m0, m20, m26
     vpdpwssds       m1, m21, m27
     vpdpwssds       m0, m22, m28
@@ -87,12 +87,12 @@ cglobal ravu_compute_pixels, 4, 13, 0, dst, src, wt, w, h, stride, wstride, \
     punpckhwd      m23, m16, m17
     punpcklwd      m24, m18, m19
     punpckhwd      m25, m18, m19
-    mova           m26, [wtq+6*32*2]
-    mova           m27, [wtq+7*32*2]
-    mova           m28, [wtq+8*32*2]
-    mova           m29, [wtq+9*32*2]
-    mova           m30, [wtq+10*32*2]
-    mova           m31, [wtq+11*32*2]
+    movu           m26, [wtq+6*32*2]
+    movu           m27, [wtq+7*32*2]
+    movu           m28, [wtq+8*32*2]
+    movu           m29, [wtq+9*32*2]
+    movu           m30, [wtq+10*32*2]
+    movu           m31, [wtq+11*32*2]
     vpdpwssds       m0, m20, m26
     vpdpwssds       m1, m21, m27
     vpdpwssds       m0, m22, m28
@@ -124,12 +124,12 @@ cglobal ravu_compute_pixels, 4, 13, 0, dst, src, wt, w, h, stride, wstride, \
     punpckhwd      m23, m16, m17
     punpcklwd      m24, m18, m19
     punpckhwd      m25, m18, m19
-    mova           m26, [wtq+12*32*2]
-    mova           m27, [wtq+13*32*2]
-    mova           m28, [wtq+14*32*2]
-    mova           m29, [wtq+15*32*2]
-    mova           m30, [wtq+16*32*2]
-    mova           m31, [wtq+17*32*2]
+    movu           m26, [wtq+12*32*2]
+    movu           m27, [wtq+13*32*2]
+    movu           m28, [wtq+14*32*2]
+    movu           m29, [wtq+15*32*2]
+    movu           m30, [wtq+16*32*2]
+    movu           m31, [wtq+17*32*2]
     vpdpwssds       m0, m20, m26
     vpdpwssds       m1, m21, m27
     vpdpwssds       m0, m22, m28
@@ -151,13 +151,6 @@ cglobal ravu_compute_pixels, 4, 13, 0, dst, src, wt, w, h, stride, wstride, \
     add            wtq, 18*32*2
     sub             xq, 32
     jg .loop_x
-    mov           r10b, [dst_baseq]
-    mov  [dst_baseq-1], r10b
-    mov  [dst_baseq-2], r10b
-    mov           r10b, [dst_baseq+wq-1]
-    mov [dst_baseq+wq+0], r10b
-    mov [dst_baseq+wq+1], r10b
-    mov [dst_baseq+wq+2], r10b
     add      dst_baseq, strideq
     add      src_baseq, strideq
     lea       wt_baseq, [wt_baseq+wstrideq*2]
