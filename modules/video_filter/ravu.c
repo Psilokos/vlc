@@ -13,6 +13,8 @@
 #include <vlc_picture.h>
 #include <vlc_plugin.h>
 
+#define ENABLE_BENCH 1
+
 struct filter_sys
 {
     uint8_t *input;
@@ -23,6 +25,11 @@ struct filter_sys
     unsigned width;
     unsigned height;
     ptrdiff_t stride;
+
+#if ENABLE_BENCH
+    struct timeval *tv_delta;
+    size_t num_tv_delta;
+#endif
 };
 
 /* FIXME:
@@ -1471,6 +1478,11 @@ Filter(filter_t *filter, picture_t *ipic)
         return NULL;
     picture_CopyProperties(opic, ipic);
 
+#if ENABLE_BENCH
+    struct timeval tv_start;
+    gettimeofday(&tv_start, NULL);
+#endif
+
     Filter_prepare(sys->input, ipic->Y_PIXELS,
                    sys->width, sys->height,
                    sys->stride, ipic->Y_PITCH);
@@ -1494,8 +1506,31 @@ Filter(filter_t *filter, picture_t *ipic)
                    opic->V_PITCH * opic->p[V_PLANE].i_visible_lines);
     }
 
+#if ENABLE_BENCH
+    struct timeval tv_end;
+    gettimeofday(&tv_end, NULL);
+
+    if ((sys->num_tv_delta & 4095) == 0)
+    {
+        size_t const new_size =
+            (sys->num_tv_delta + 4096) * sizeof(struct timeval);
+        struct timeval *new_tv_delta = realloc(sys->tv_delta, new_size);
+        if (!new_tv_delta)
+            goto error;
+        sys->tv_delta = new_tv_delta;
+    }
+
+    struct timeval tmp;
+    timersub(&tv_end, &tv_start, &tmp);
+    sys->tv_delta[sys->num_tv_delta++] = tmp;
+#endif
+
     goto ret;
 
+#if ENABLE_BENCH
+error:
+    msg_Err(filter, "benchmark allocation error");
+#endif
 ret:
     picture_Release(ipic);
     return opic;
@@ -1506,6 +1541,20 @@ Close(vlc_object_t *obj)
 {
     filter_t *filter = (filter_t *)obj;
     struct filter_sys *sys = (struct filter_sys *)filter->p_sys;
+
+#if ENABLE_BENCH
+    uint64_t total_delta = 0;
+    for (size_t i = 0; i < sys->num_tv_delta; ++i)
+        total_delta += (uint64_t)sys->tv_delta[i].tv_sec * 1000000
+            + sys->tv_delta[i].tv_usec;
+    if (total_delta > 0)
+        msg_Info(filter, "%lu micro-seconds per frame on average",
+                 total_delta / sys->num_tv_delta);
+    else
+        msg_Err(filter, "no benchmark record");
+
+    free(sys->tv_delta);
+#endif
     free(sys->shuf_weights);
     free(sys->weights);
     free(sys->pass_0);
