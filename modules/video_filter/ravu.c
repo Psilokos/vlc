@@ -1478,14 +1478,6 @@ Filter(filter_t *filter, picture_t *ipic)
                   sys->weights, sys->shuf_weights,
                   sys->width, sys->height, sys->stride);
 
-#if 0
-    msg_Info(filter, "--------------------- START ------------------");
-    Filter_debug(sys->pass_0, sys->width, sys->height, sys->stride);
-    msg_Info(filter, "---------------------- END -------------------");
-#else
-    msg_Info(filter, "RAVU is alive and well my friend");
-#endif
-
     for (unsigned i = 0; i < sys->height; ++i)
         memcpy(opic->Y_PIXELS + i * opic->Y_PITCH,
                sys->pass_0 + i * sys->stride,
