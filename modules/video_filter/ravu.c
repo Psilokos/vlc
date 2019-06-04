@@ -14,6 +14,7 @@
 #include <vlc_plugin.h>
 
 #define ENABLE_BENCH 1
+#define NUM_THREADS 8
 
 struct filter_sys
 {
@@ -1395,16 +1396,26 @@ void vlc_ravu_compute_pixels_avx512(uint8_t *omtx, uint8_t const *imtx,
                                     unsigned width, unsigned height,
                                     ptrdiff_t stride, ptrdiff_t wstride);
 
-static inline void
-Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
-              int16_t *weights, int16_t *shuf_weights,
-              unsigned const width, unsigned const height,
-              ptrdiff_t const stride)
+struct thread_ctx
 {
-    ptrdiff_t const wstride = 18 * stride;
-    for (unsigned y = 0; y < height; ++y)
+    uint8_t const *imtx;
+    int16_t *weights;
+    unsigned x;
+    unsigned y;
+    unsigned width;
+    size_t num_pix;
+    ptrdiff_t stride;
+    ptrdiff_t wstride;
+};
+
+static inline void *
+pass_0_gather_weights(void *arg)
+{
+    struct thread_ctx *ctx = (typeof(ctx))arg;
+    unsigned x = ctx->x;
+    for (unsigned y = ctx->y; ctx->num_pix > 0; ++y)
     {
-        for (unsigned x = 0; x < width; ++x)
+        for (; x < ctx->width && ctx->num_pix > 0; ++x, --ctx->num_pix)
         {
             uint32_t a_;
             int32_t b_;
@@ -1414,7 +1425,7 @@ Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
             for (int i = 0; i < 6; ++i)
                 for (int j = 0; j < 6; ++j)
                     pixels[i * 8 + j] =
-                        imtx[(int)x + (i - 2) * stride + (j - 2)];
+                        ctx->imtx[(int)x + (i - 2) * ctx->stride + (j - 2)];
             vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
 
             float a = a_ / (255.f * 255.f);
@@ -1443,16 +1454,52 @@ Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
 
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
 
-            memcpy(weights + y * wstride + x * 18,
+            memcpy(ctx->weights + y * ctx->wstride + x * 18,
                    lut_weights + (int)floorf(coord_y) * 18,
                    18 * sizeof(int16_t));
         }
-        imtx += stride;
+        ctx->imtx += ctx->stride;
+        x = 0;
     }
+    return NULL;
+}
 
-    imtx -= height * stride;
+static inline int
+Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
+              int16_t *weights, int16_t *shuf_weights,
+              unsigned const width, unsigned const height,
+              ptrdiff_t const stride)
+{
+    vlc_thread_t threads[NUM_THREADS] = {0};
+    struct thread_ctx ctx[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; ++i)
+    {
+        size_t tot_num_pix = width * height;
+        size_t num_pix = tot_num_pix / NUM_THREADS;
+        unsigned x = num_pix * i % width;
+        unsigned y = num_pix * i / width;
+        if (i + 1 == NUM_THREADS)
+            num_pix += tot_num_pix % NUM_THREADS;
+        ctx[i] = (typeof(*ctx))
+        {
+            .imtx = imtx + y * stride,
+            .weights = weights,
+            .x = x, .y = y,
+            .width = width,
+            .num_pix = num_pix,
+            .stride = stride,
+            .wstride = 18 * stride,
+        };
+        if (vlc_clone(threads + i, pass_0_gather_weights,
+                      ctx + i, VLC_THREAD_PRIORITY_HIGHEST))
+            return VLC_EGENERIC;
+    }
+    for (int i = 0; i < NUM_THREADS; ++i)
+        vlc_join(threads[i], NULL);
+
     vlc_ravu_shuffle_weights_avx512(shuf_weights, weights, stride, height);
-    vlc_ravu_compute_pixels_avx512(omtx, imtx, shuf_weights, width, height, stride, wstride);
+    vlc_ravu_compute_pixels_avx512(omtx, imtx, shuf_weights, width, height, stride, 18 * stride);
+    return VLC_SUCCESS;
 }
 
 static inline void
@@ -1486,9 +1533,10 @@ Filter(filter_t *filter, picture_t *ipic)
     Filter_prepare(sys->input, ipic->Y_PIXELS,
                    sys->width, sys->height,
                    sys->stride, ipic->Y_PITCH);
-    Filter_pass_0(sys->pass_0, sys->input + 2 * sys->stride + 2,
-                  sys->weights, sys->shuf_weights,
-                  sys->width, sys->height, sys->stride);
+    if (Filter_pass_0(sys->pass_0, sys->input + 2 * sys->stride + 2,
+                      sys->weights, sys->shuf_weights,
+                      sys->width, sys->height, sys->stride))
+        goto error;
 
     for (unsigned i = 0; i < sys->height; ++i)
         memcpy(opic->Y_PIXELS + i * opic->Y_PITCH,
@@ -1516,7 +1564,7 @@ Filter(filter_t *filter, picture_t *ipic)
             (sys->num_tv_delta + 4096) * sizeof(struct timeval);
         struct timeval *new_tv_delta = realloc(sys->tv_delta, new_size);
         if (!new_tv_delta)
-            goto error;
+            goto bench_error;
         sys->tv_delta = new_tv_delta;
     }
 
@@ -1528,9 +1576,13 @@ Filter(filter_t *filter, picture_t *ipic)
     goto ret;
 
 #if ENABLE_BENCH
-error:
+bench_error:
     msg_Err(filter, "benchmark allocation error");
+    goto ret;
 #endif
+error:
+    picture_Release(opic);
+    opic = NULL;
 ret:
     picture_Release(ipic);
     return opic;
