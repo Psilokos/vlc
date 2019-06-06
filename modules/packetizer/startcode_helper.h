@@ -143,15 +143,19 @@ startcode_FindAnnexB_Bits(uint8_t const *p, uint8_t const *end)
 }
 #undef TRY_MATCH
 
+uint8_t const *vlcpriv_startcode_FindAnnexB_ssse3(uint8_t const *ptr,
+                                                  uint8_t const *end);
 
 static inline block_startcode_helper_t
 startcode_FindAnnexB_helper(void)
 {
+    if (vlc_CPU_SSSE3())
+        return vlcpriv_startcode_FindAnnexB_ssse3;
 #if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
-    if (vlc_CPU_SSE2())
+    else if (vlc_CPU_SSE2())
         return startcode_FindAnnexB_SSE2;
-    else
 #endif
+    else
         return startcode_FindAnnexB_Bits;
 }
 
