@@ -77,16 +77,6 @@ static int run_annexb_sets( const uint8_t *p_set, const uint8_t *p_end,
         return i_ret;
 
     /* Perform same tests on SIMD optimized code */
-#if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
-    if (vlc_CPU_SSE2())
-    {
-        printf("checking SSE2 asm:\n");
-        i_ret = check_set( p_set, p_end, p_results, i_results, i_results_offset,
-                           startcode_FindAnnexB_SSE2 );
-        if( i_ret != 0 )
-            return i_ret;
-    }
-#endif
     if (vlc_CPU_SSSE3())
     {
         printf("checking SSSE3 asm:\n");
