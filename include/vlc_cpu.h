@@ -44,8 +44,9 @@ VLC_API void vlc_CPU_unmask(unsigned cap);
 #  define VLC_CPU_SSE4A  0x00001000
 #  define VLC_CPU_AVX    0x00002000
 #  define VLC_CPU_AVX2   0x00004000
-#  define VLC_CPU_XOP    0x00008000
-#  define VLC_CPU_FMA4   0x00010000
+#  define VLC_CPU_AVX512 0x00008000 /* FIXME avx512 is composed of several instruction sets */
+#  define VLC_CPU_XOP    0x00010000
+#  define VLC_CPU_FMA4   0x00020000
 
 #  define VLC_MMX __attribute__ ((__target__ ("mmx")))
 #  define VLC_SSE __attribute__ ((__target__ ("sse")))
