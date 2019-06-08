@@ -99,6 +99,8 @@ static void vlc_CPU_init (void)
                 core_caps |= VLC_CPU_AVX;
             if (!strcmp (cap, "avx2"))
                 core_caps |= VLC_CPU_AVX2;
+            if (!strcmp (cap, "avx512"))
+                core_caps |= VLC_CPU_AVX512;
             if (!strcmp (cap, "3dnow"))
                 core_caps |= VLC_CPU_3dNOW;
             if (!strcmp (cap, "xop"))
