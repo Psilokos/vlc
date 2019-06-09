@@ -9,6 +9,11 @@ extra_check_verbose_ = $(extra_check_flags__$(AM_DEFAULT_VERBOSITY))
 extra_check_verbose_0 = @echo TEST $@
 extra_check_verbose__0 = $(extra_check_verbose_0)
 
+SUFFIXES = .asm
+
+.asm.o:
+	$(X86ASM) $(X86ASMFLAGS) $(X86ASMDEFS) -I$(top_srcdir)/extras/include/x86/ $< -o $@
+
 ###############################################################################
 # Unit/regression test
 ###############################################################################
@@ -135,9 +140,9 @@ test_src_interface_dialog_SOURCES = src/interface/dialog.c
 test_src_interface_dialog_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_src_media_source_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_src_media_source_SOURCES = src/media_source/media_source.c
-test_modules_packetizer_helpers_SOURCES = modules/packetizer/helpers.c
+test_modules_packetizer_helpers_SOURCES = modules/packetizer/helpers.c $(top_srcdir)/modules/packetizer/startcode.asm
 test_modules_packetizer_helpers_LDADD = $(LIBVLCCORE) $(LIBVLC)
-test_modules_packetizer_hxxx_SOURCES = modules/packetizer/hxxx.c
+test_modules_packetizer_hxxx_SOURCES = modules/packetizer/hxxx.c $(top_srcdir)/modules/packetizer/startcode.asm
 test_modules_packetizer_hxxx_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_keystore_SOURCES = modules/keystore/test.c
 test_modules_keystore_LDADD = $(LIBVLCCORE) $(LIBVLC)

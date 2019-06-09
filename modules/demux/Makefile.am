@@ -170,7 +170,8 @@ libes_plugin_la_SOURCES  = demux/mpeg/es.c \
 demux_LTLIBRARIES += libes_plugin.la
 
 libh26x_plugin_la_SOURCES = demux/mpeg/h26x.c \
-                            packetizer/h264_nal.c packetizer/hevc_nal.h
+                            packetizer/h264_nal.c packetizer/hevc_nal.h \
+			    packetizer/startcode.asm
 libh26x_plugin_la_LIBADD = $(LIBM)
 demux_LTLIBRARIES += libh26x_plugin.la
 
@@ -471,7 +472,8 @@ libadaptive_smooth_SOURCES = \
     demux/smooth/SmoothStream.hpp \
     demux/smooth/SmoothStream.cpp
 libadaptive_smooth_SOURCES += mux/mp4/libmp4mux.c mux/mp4/libmp4mux.h \
-			      packetizer/h264_nal.c packetizer/hevc_nal.c
+			      packetizer/h264_nal.c packetizer/hevc_nal.c \
+			      packetizer/startcode.asm
 
 libadaptive_plugin_la_SOURCES += $(libadaptive_hls_SOURCES)
 libadaptive_plugin_la_SOURCES += $(libadaptive_dash_SOURCES)

@@ -76,13 +76,13 @@ static int run_annexb_sets( const uint8_t *p_set, const uint8_t *p_end,
     if( i_ret != 0 )
         return i_ret;
 
-    /* Perform same tests on simd optimized code */
-#if defined(CAN_COMPILE_SSE2) || defined(HAVE_SSE2_INTRINSICS)
+    /* Perform same tests on SIMD optimized code */
+#if __i386__ || __x86_64__
     if (vlc_CPU_SSE2())
     {
-        printf("checking asm:\n");
+        printf("checking SSE2 asm:\n");
         i_ret = check_set( p_set, p_end, p_results, i_results, i_results_offset,
-                           startcode_FindAnnexB_SSE2 );
+                           vlcpriv_startcode_FindAnnexB_sse2 );
         if( i_ret != 0 )
             return i_ret;
     }

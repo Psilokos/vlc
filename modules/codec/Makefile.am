@@ -337,7 +337,8 @@ libvideotoolbox_plugin_la_SOURCES = \
 	packetizer/hxxx_sei.h packetizer/hxxx_sei.c \
 	packetizer/h264_slice.c packetizer/h264_slice.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
-	packetizer/hevc_nal.c packetizer/hevc_nal.h
+	packetizer/hevc_nal.c packetizer/hevc_nal.h \
+	packetizer/startcode.asm
 libvideotoolbox_plugin_la_OBJCFLAGS = $(AM_OBJCFLAGS) -fobjc-arc
 if HAVE_IOS
 libvideotoolbox_plugin_la_OBJCFLAGS += -miphoneos-version-min=8.0
@@ -410,6 +411,7 @@ libdxva2_plugin_la_SOURCES = \
 	codec/avcodec/va_surface.c codec/avcodec/va_surface.h codec/avcodec/va_surface_internal.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
 	packetizer/hevc_nal.c packetizer/hevc_nal.h \
+	packetizer/startcode.asm \
 	codec/avcodec/dxva_blacklist.c
 libdxva2_plugin_la_LIBADD = libd3d9_common.la $(LIBCOM) -lshlwapi -luuid
 if HAVE_AVCODEC_DXVA2
@@ -428,6 +430,7 @@ libd3d11va_plugin_la_SOURCES = \
         codec/avcodec/va_surface.c codec/avcodec/va_surface.h codec/avcodec/va_surface_internal.h \
 	packetizer/h264_nal.c packetizer/h264_nal.h \
 	packetizer/hevc_nal.c packetizer/hevc_nal.h \
+	packetizer/startcode.asm \
 	codec/avcodec/dxva_blacklist.c
 libd3d11va_plugin_la_LIBADD = libd3d11_common.la $(LIBCOM) -luuid
 if HAVE_WINSTORE
@@ -565,7 +568,9 @@ codec_LTLIBRARIES += $(LTLIBdav1d)
 
 ### Hardware encoders ###
 
-libcrystalhd_plugin_la_SOURCES = codec/crystalhd.c packetizer/h264_nal.c packetizer/h264_nal.h
+libcrystalhd_plugin_la_SOURCES = codec/crystalhd.c \
+				 packetizer/h264_nal.c packetizer/h264_nal.h \
+				 packetizer/startcode.asm
 libcrystalhd_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(codecdir)'
 libcrystalhd_plugin_la_LIBADD = $(LIBS_crystalhd)
 EXTRA_LTLIBRARIES += libcrystalhd_plugin.la
@@ -589,7 +594,9 @@ libdmo_plugin_la_LIBADD += $(LIBCOM) -luuid
 codec_LTLIBRARIES += libdmo_plugin.la
 endif
 
-libmft_plugin_la_SOURCES = codec/mft.c packetizer/h264_nal.c packetizer/h264_nal.h
+libmft_plugin_la_SOURCES = codec/mft.c \
+			   packetizer/h264_nal.c packetizer/h264_nal.h \
+			   packetizer/startcode.asm
 if HAVE_WIN32
 libmft_plugin_la_LIBADD = $(LIBCOM) -luuid -lmfuuid -lmfplat
 codec_LTLIBRARIES += libmft_plugin.la
