@@ -70,13 +70,17 @@ startcode_FindAnnexB_Bits(uint8_t const *p, uint8_t const *end)
 #if defined(__i386__) || defined(__x86_64__)
 uint8_t const *vlcpriv_startcode_FindAnnexB_sse2(uint8_t const *ptr,
                                                  uint8_t const *end);
+uint8_t const *vlcpriv_startcode_FindAnnexB_ssse3(uint8_t const *ptr,
+                                                  uint8_t const *end);
 #endif
 
 static inline block_startcode_helper_t
 startcode_FindAnnexB_helper(void)
 {
 #if defined(__i386__) || defined(__x86_64__)
-    if (vlc_CPU_SSE2())
+    if (vlc_CPU_SSSE3())
+        return vlcpriv_startcode_FindAnnexB_ssse3;
+    else if (vlc_CPU_SSE2())
         return vlcpriv_startcode_FindAnnexB_sse2;
     else
 #endif

@@ -86,6 +86,14 @@ static int run_annexb_sets( const uint8_t *p_set, const uint8_t *p_end,
         if( i_ret != 0 )
             return i_ret;
     }
+    if (vlc_CPU_SSSE3())
+    {
+        printf("checking SSSE3 asm:\n");
+        i_ret = check_set( p_set, p_end, p_results, i_results, i_results_offset,
+                           vlcpriv_startcode_FindAnnexB_ssse3 );
+        if( i_ret != 0 )
+            return i_ret;
+    }
 #endif
 
     return 0;
