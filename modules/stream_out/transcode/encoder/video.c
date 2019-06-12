@@ -182,6 +182,25 @@ static void transcode_video_sar_apply( const video_format_t *p_src,
     }
 }
 
+static inline void
+ScaleStreamOutput(vlc_object_t *obj, video_format_t *fmt, float scale_factor)
+{
+    int new_visible_width = roundf(fmt->i_visible_width * scale_factor);
+    int new_visible_height = roundf(fmt->i_visible_height * scale_factor);
+
+    msg_Dbg(obj, "scaling sout from %dx%d to %dx%d (x%.3f)",
+             fmt->i_visible_width, fmt->i_visible_height,
+             new_visible_width, new_visible_height,
+             scale_factor);
+
+    int padding_x = fmt->i_width - fmt->i_visible_width;
+    int padding_y = fmt->i_height - fmt->i_visible_height;
+    fmt->i_visible_width = new_visible_width;
+    fmt->i_visible_height = new_visible_height;
+    fmt->i_width = fmt->i_visible_width + padding_x;
+    fmt->i_height = fmt->i_visible_height + padding_y;
+}
+
 void transcode_encoder_video_configure( vlc_object_t *p_obj,
                                         const video_format_t *p_dec_in,
                                         const video_format_t *p_dec_out,
@@ -191,6 +210,15 @@ void transcode_encoder_video_configure( vlc_object_t *p_obj,
 {
     video_format_t *p_enc_in = &p_enc->p_encoder->fmt_in.video;
     video_format_t *p_enc_out = &p_enc->p_encoder->fmt_out.video;
+
+    float const scale_factor = var_CreateGetFloat(p_obj, "scale");
+    if (scale_factor != 1.f)
+    {
+        ScaleStreamOutput(p_obj, p_src, scale_factor);
+        ScaleStreamOutput(p_obj, p_enc_in, scale_factor);
+        ScaleStreamOutput(p_obj, p_enc_out, scale_factor);
+    }
+    var_Destroy(p_obj, "scale");
 
     /* Complete destination format */
     p_enc->p_encoder->fmt_out.i_codec = p_enc_out->i_chroma = p_cfg->i_codec;
@@ -222,6 +250,7 @@ void transcode_encoder_video_configure( vlc_object_t *p_obj,
                                 p_cfg->video.i_maxwidth,
                                 p_cfg->video.i_maxheight,
                                 p_enc_out );
+    fprintf(stderr, "%dx%d\n", p_enc_out->i_width, p_enc_out->i_height);
     p_enc_in->i_width = p_enc_out->i_width;
     p_enc_in->i_visible_width = p_enc_out->i_visible_width;
     p_enc_in->i_height = p_enc_out->i_height;
@@ -428,10 +457,20 @@ int transcode_encoder_video_open( transcode_encoder_t *p_enc,
     p_enc->p_encoder->i_threads = p_cfg->video.threads.i_count;
     p_enc->p_encoder->p_cfg = p_cfg->p_config_chain;
 
+    msg_Info(p_enc->p_encoder, "opening encoder with fmt %dx%d (with input %dx%d)\n",
+             p_enc->p_encoder->fmt_out.video.i_width,
+             p_enc->p_encoder->fmt_out.video.i_height,
+             p_enc->p_encoder->fmt_in.video.i_width,
+             p_enc->p_encoder->fmt_in.video.i_height);
     p_enc->p_encoder->p_module =
         module_need( p_enc->p_encoder, "encoder", p_cfg->psz_name, true );
     if( !p_enc->p_encoder->p_module )
         return VLC_EGENERIC;
+    msg_Info(p_enc->p_encoder, "encoder opened with fmt %dx%d (with input %dx%d)\n",
+             p_enc->p_encoder->fmt_out.video.i_width,
+             p_enc->p_encoder->fmt_out.video.i_height,
+             p_enc->p_encoder->fmt_in.video.i_width,
+             p_enc->p_encoder->fmt_in.video.i_height);
 
     p_enc->p_encoder->fmt_in.video.i_chroma = p_enc->p_encoder->fmt_in.i_codec;
 
