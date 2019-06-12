@@ -285,15 +285,15 @@ static void transcode_video_filter_init( sout_stream_t *p_stream,
 
 /* Take care of the scaling and chroma conversions. */
 static int conversion_video_filter_append( sout_stream_id_sys_t *id,
-                                           picture_t *p_pic )
+                                           picture_t *p_pic, bool scale )
 {
     const video_format_t *p_src = filtered_video_format( id, p_pic );
 
     const es_format_t *p_enc_in = transcode_encoder_format_in( id->encoder );
 
     if( ( p_src->i_chroma != p_enc_in->video.i_chroma ) ||
-        ( p_src->i_width != p_enc_in->video.i_width ) ||
-        ( p_src->i_height != p_enc_in->video.i_height ) )
+        ( !scale && p_src->i_width != p_enc_in->video.i_width ) ||
+        ( !scale && p_src->i_height != p_enc_in->video.i_height ) )
     {
         es_format_t fmt_out;
         es_format_Init( &fmt_out, VIDEO_ES, p_src->i_chroma );
@@ -486,7 +486,10 @@ int transcode_video_process( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
             {
                 transcode_video_filter_init( p_stream, id->p_filterscfg,
                                              (id->p_enccfg->video.fps.num > 0), id );
-                if( conversion_video_filter_append( id, p_pic ) != VLC_SUCCESS )
+                float const scale_factor = var_CreateGetFloat(p_stream, "scale");
+                fprintf(stderr, "scale: %f\n", scale_factor);
+                var_Destroy(p_stream, "scale");
+                if( conversion_video_filter_append( id, p_pic, scale_factor != 1.f ) != VLC_SUCCESS )
                     goto error;
             }
 

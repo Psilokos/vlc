@@ -1398,6 +1398,7 @@ static int  Open ( vlc_object_t *p_this )
     }
     free(psz_opts);
 
+    msg_Info(p_enc, "opening x264 encoder with fmt %dx%d", p_sys->param.i_width, p_sys->param.i_height);
     /* Open the encoder */
     p_sys->h = x264_encoder_open( &p_sys->param );
 
