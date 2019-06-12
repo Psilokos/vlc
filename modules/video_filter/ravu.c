@@ -2057,6 +2057,7 @@ Open(vlc_object_t *obj)
     sys->weights = malloc(18 * stride * h * sizeof(int16_t)); if (!sys->weights) goto error;
     sys->shuf_weights = malloc(18 * stride * h * sizeof(int16_t)); if (!sys->shuf_weights) goto error;
 
+#if 0
     video_format_t *vfmt = &filter->fmt_out.video;
     int const padding_x = vfmt->i_width - vfmt->i_visible_width;
     int const padding_y = vfmt->i_height - vfmt->i_visible_height;
@@ -2064,6 +2065,7 @@ Open(vlc_object_t *obj)
     vfmt->i_visible_height *= scale_factor;
     vfmt->i_width = vfmt->i_visible_width + padding_x;
     vfmt->i_height = vfmt->i_visible_height + padding_y;
+#endif
 
     sys->width = w;
     sys->height = h;
