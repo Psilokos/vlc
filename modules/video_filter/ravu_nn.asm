@@ -151,6 +151,13 @@ cglobal ravu_compute_pixels, 4, 13, 0, dst, src, wt, w, h, stride, wstride, \
     add            wtq, 18*32*2
     sub             xq, 32
     jg .loop_x
+    mov           r10b, [dst_baseq]
+    mov  [dst_baseq-1], r10b
+    mov  [dst_baseq-2], r10b
+    mov           r10b, [dst_baseq+wq-1]
+    mov [dst_baseq+wq+0], r10b
+    mov [dst_baseq+wq+1], r10b
+    mov [dst_baseq+wq+2], r10b
     add      dst_baseq, strideq
     add      src_baseq, strideq
     lea       wt_baseq, [wt_baseq+wstrideq*2]
