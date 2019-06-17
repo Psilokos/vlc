@@ -99,9 +99,7 @@ typedef struct
  * @see RenderLinear()
  * @see Deinterlace()
  */
-int RenderPhosphor( filter_t *p_filter,
-                    picture_t *p_dst, picture_t *p_pic,
-                    int i_order, int i_field );
+ordered_renderer_t PhosphorRenderer(unsigned pixel_size);
 
 /*****************************************************************************
  * Extra documentation

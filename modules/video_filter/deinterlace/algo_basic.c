@@ -32,17 +32,17 @@
 #include <vlc_common.h>
 #include <vlc_picture.h>
 #include <vlc_filter.h>
-
-#include "merge.h"
-#include "deinterlace.h" /* definition of p_sys, needed for Merge() */
-
+#include <vlc_cpu.h>
+#include "deinterlace.h"
 #include "algo_basic.h"
+#include "merge.h"
 
 /*****************************************************************************
  * RenderDiscard: only keep TOP or BOTTOM field, discard the other.
  *****************************************************************************/
 
-int RenderDiscard( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
+static int RenderDiscard( filter_t *p_filter,
+                          picture_t *p_outpic, picture_t *p_pic )
 {
     VLC_UNUSED(p_filter);
     int i_plane;
@@ -67,14 +67,21 @@ int RenderDiscard( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
         }
     }
     return VLC_SUCCESS;
+}
+
+single_pic_renderer_t DiscardRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderDiscard;
 }
 
 /*****************************************************************************
  * RenderBob: renders a BOB picture - simple copy
  *****************************************************************************/
 
-int RenderBob( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic,
-               int order, int i_field )
+static int RenderBob( filter_t *p_filter,
+                      picture_t *p_outpic, picture_t *p_pic,
+                      int order, int i_field )
 {
     VLC_UNUSED(p_filter);
     VLC_UNUSED(order);
@@ -125,132 +132,305 @@ int RenderBob( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic,
     return VLC_SUCCESS;
 }
 
+ordered_renderer_t BobRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderBob;
+}
+
 /*****************************************************************************
  * RenderLinear: BOB with linear interpolation
  *****************************************************************************/
 
-int RenderLinear( filter_t *p_filter,
-                  picture_t *p_outpic, picture_t *p_pic, int order, int i_field )
+#define RENDER_LINEAR(merge, bpc, feature)                                  \
+static int RenderLinear##bpc##Bit_##feature( filter_t *p_filter,            \
+                                             picture_t *p_outpic,           \
+                                             picture_t *p_pic,              \
+                                             int order, int i_field )       \
+{                                                                           \
+    VLC_UNUSED(p_filter); VLC_UNUSED(order);                                \
+    int i_plane;                                                            \
+                                                                            \
+    /* Copy image and skip lines */                                         \
+    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )              \
+    {                                                                       \
+        uint8_t *p_in, *p_out_end, *p_out;                                  \
+                                                                            \
+        p_in = p_pic->p[i_plane].p_pixels;                                  \
+        p_out = p_outpic->p[i_plane].p_pixels;                              \
+        p_out_end = p_out + p_outpic->p[i_plane].i_pitch                    \
+                             * p_outpic->p[i_plane].i_visible_lines;        \
+                                                                            \
+        /* For BOTTOM field we need to add the first line */                \
+        if( i_field == 1 )                                                  \
+        {                                                                   \
+            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );               \
+            p_in += p_pic->p[i_plane].i_pitch;                              \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+        }                                                                   \
+                                                                            \
+        p_out_end -= 2 * p_outpic->p[i_plane].i_pitch;                      \
+                                                                            \
+        for( ; p_out < p_out_end ; )                                        \
+        {                                                                   \
+            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );               \
+                                                                            \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+                                                                            \
+            ptrdiff_t stride = p_pic->p[i_plane].i_pitch;                   \
+            merge( p_out, p_in, p_in + 2 * stride, stride);                 \
+                                                                            \
+            p_in += 2 * p_pic->p[i_plane].i_pitch;                          \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+        }                                                                   \
+                                                                            \
+        memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );                   \
+                                                                            \
+        /* For TOP field we need to add the last line */                    \
+        if( i_field == 0 )                                                  \
+        {                                                                   \
+            p_in += p_pic->p[i_plane].i_pitch;                              \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );               \
+        }                                                                   \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
+#define RENDER_LINEAR_SIMD(bpc, feature) \
+    RENDER_LINEAR(Merge##bpc##Bit##feature, bpc, feature)
+#define RENDER_LINEAR_ARM(bpc, feature) \
+    RENDER_LINEAR(merge##bpc##_##feature, bpc, feature)
+
+RENDER_LINEAR(Merge8BitGeneric, 8, c)
+RENDER_LINEAR(Merge16BitGeneric, 16, c)
+#if defined(CAN_COMPILE_SSE2)
+RENDER_LINEAR_SIMD(8, SSE2)
+RENDER_LINEAR_SIMD(16, SSE2)
+#endif
+#if defined(CAN_COMPILE_ARM)
+RENDER_LINEAR_ARM(8, arm_neon)
+RENDER_LINEAR_ARM(16, arm_neon)
+RENDER_LINEAR_ARM(8, armv6)
+RENDER_LINEAR_ARM(16, armv6)
+#endif
+#if defined(CAN_COMPILE_SVE)
+RENDER_LINEAR_ARM(8, arm_sve)
+RENDER_LINEAR_ARM(16, arm_sve)
+#endif
+#if defined(CAN_COMPULE_ARM64)
+RENDER_LINEAR_ARM(8, arm64_neon)
+RENDER_LINEAR_ARM(16, arm64_neon)
+#endif
+
+ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
-    VLC_UNUSED(order);
-    int i_plane;
-
-    filter_sys_t *p_sys = p_filter->p_sys;
-
-    /* Copy image and skip lines */
-    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )
-    {
-        uint8_t *p_in, *p_out_end, *p_out;
-
-        p_in = p_pic->p[i_plane].p_pixels;
-        p_out = p_outpic->p[i_plane].p_pixels;
-        p_out_end = p_out + p_outpic->p[i_plane].i_pitch
-                             * p_outpic->p[i_plane].i_visible_lines;
-
-        /* For BOTTOM field we need to add the first line */
-        if( i_field == 1 )
-        {
-            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );
-            p_in += p_pic->p[i_plane].i_pitch;
-            p_out += p_outpic->p[i_plane].i_pitch;
-        }
-
-        p_out_end -= 2 * p_outpic->p[i_plane].i_pitch;
-
-        for( ; p_out < p_out_end ; )
-        {
-            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );
-
-            p_out += p_outpic->p[i_plane].i_pitch;
-
-            Merge( p_out, p_in, p_in + 2 * p_pic->p[i_plane].i_pitch,
-                   p_pic->p[i_plane].i_pitch );
-
-            p_in += 2 * p_pic->p[i_plane].i_pitch;
-            p_out += p_outpic->p[i_plane].i_pitch;
-        }
-
-        memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );
-
-        /* For TOP field we need to add the last line */
-        if( i_field == 0 )
-        {
-            p_in += p_pic->p[i_plane].i_pitch;
-            p_out += p_outpic->p[i_plane].i_pitch;
-            memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );
-        }
-    }
-    return VLC_SUCCESS;
+#if defined(CAN_COMPILE_SSE2)
+    if (vlc_CPU_SSE2())
+        return pixel_size & 1 ? RenderLinear8Bit_SSE2 : RenderLinear16Bit_SSE2;
+    else
+#endif
+#if defined(CAN_COMPILE_ARM)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderLinear8Bit_arm_neon : RenderLinear16Bit_arm_neon;
+    else
+    if (vlc_CPU_ARMv6())
+        return pixel_size & 1 ? RenderLinear8Bit_armv6 : RenderLinear16Bit_armv6;
+    else
+#endif
+#if defined(CAN_COMPILE_SVE)
+    if (vlc_CPU_ARM_SVE())
+        return pixel_size & 1 ? RenderLinear8Bit_arm_sve : RenderLinear16Bit_arm_sve;
+    else
+#endif
+#if defined(CAN_COMPULE_ARM64)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderLinear8Bit_arm64_neon : RenderLinear16Bit_arm64_neon;
+    else
+#endif
+        return pixel_size & 1 ? RenderLinear8Bit_c : RenderLinear16Bit_c;
 }
 
 /*****************************************************************************
  * RenderMean: Half-resolution blender
  *****************************************************************************/
 
-int RenderMean( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
+#define RENDER_MEAN(merge, bpc, feature)                                    \
+static int RenderMean##bpc##Bit_##feature( filter_t *p_filter,              \
+                                          picture_t *p_outpic,              \
+                                          picture_t *p_pic )                \
+{                                                                           \
+    VLC_UNUSED(p_filter);                                                   \
+    int i_plane;                                                            \
+                                                                            \
+    /* Copy image and skip lines */                                         \
+    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )              \
+    {                                                                       \
+        uint8_t *p_in, *p_out_end, *p_out;                                  \
+                                                                            \
+        p_in = p_pic->p[i_plane].p_pixels;                                  \
+                                                                            \
+        p_out = p_outpic->p[i_plane].p_pixels;                              \
+        p_out_end = p_out + p_outpic->p[i_plane].i_pitch                    \
+                             * p_outpic->p[i_plane].i_visible_lines;        \
+                                                                            \
+        /* All lines: mean value */                                         \
+        for( ; p_out < p_out_end ; )                                        \
+        {                                                                   \
+            merge( p_out, p_in, p_in + p_pic->p[i_plane].i_pitch,           \
+                   p_pic->p[i_plane].i_pitch );                             \
+                                                                            \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+            p_in += 2 * p_pic->p[i_plane].i_pitch;                          \
+        }                                                                   \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
+#define RENDER_MEAN_SIMD(bpc, feature) \
+    RENDER_MEAN(Merge##bpc##Bit##feature, bpc, feature)
+#define RENDER_MEAN_ARM(bpc, feature) \
+    RENDER_MEAN(merge##bpc##_##feature, bpc, feature)
+
+RENDER_MEAN(Merge8BitGeneric, 8, c)
+RENDER_MEAN(Merge16BitGeneric, 16, c)
+#if defined(CAN_COMPILE_SSE2)
+RENDER_MEAN_SIMD(8, SSE2)
+RENDER_MEAN_SIMD(16, SSE2)
+#endif
+#if defined(CAN_COMPILE_ARM)
+RENDER_MEAN_ARM(8, arm_neon)
+RENDER_MEAN_ARM(16, arm_neon)
+RENDER_MEAN_ARM(8, armv6)
+RENDER_MEAN_ARM(16, armv6)
+#endif
+#if defined(CAN_COMPILE_SVE)
+RENDER_MEAN_ARM(8, arm_sve)
+RENDER_MEAN_ARM(16, arm_sve)
+#endif
+#if defined(CAN_COMPULE_ARM64)
+RENDER_MEAN_ARM(8, arm64_neon)
+RENDER_MEAN_ARM(16, arm64_neon)
+#endif
+
+single_pic_renderer_t MeanRenderer(unsigned pixel_size)
 {
-    int i_plane;
-
-    filter_sys_t *p_sys = p_filter->p_sys;
-
-    /* Copy image and skip lines */
-    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )
-    {
-        uint8_t *p_in, *p_out_end, *p_out;
-
-        p_in = p_pic->p[i_plane].p_pixels;
-
-        p_out = p_outpic->p[i_plane].p_pixels;
-        p_out_end = p_out + p_outpic->p[i_plane].i_pitch
-                             * p_outpic->p[i_plane].i_visible_lines;
-
-        /* All lines: mean value */
-        for( ; p_out < p_out_end ; )
-        {
-            Merge( p_out, p_in, p_in + p_pic->p[i_plane].i_pitch,
-                   p_pic->p[i_plane].i_pitch );
-
-            p_out += p_outpic->p[i_plane].i_pitch;
-            p_in += 2 * p_pic->p[i_plane].i_pitch;
-        }
-    }
-    return VLC_SUCCESS;
+#if defined(CAN_COMPILE_SSE2)
+    if (vlc_CPU_SSE2())
+        return pixel_size & 1 ? RenderMean8Bit_SSE2 : RenderMean16Bit_SSE2;
+    else
+#endif
+#if defined(CAN_COMPILE_ARM)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderMean8Bit_arm_neon : RenderMean16Bit_arm_neon;
+    else
+    if (vlc_CPU_ARMv6())
+        return pixel_size & 1 ? RenderMean8Bit_armv6 : RenderMean16Bit_armv6;
+    else
+#endif
+#if defined(CAN_COMPILE_SVE)
+    if (vlc_CPU_ARM_SVE())
+        return pixel_size & 1 ? RenderMean8Bit_arm_sve : RenderMean16Bit_arm_sve;
+    else
+#endif
+#if defined(CAN_COMPULE_ARM64)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderMean8Bit_arm64_neon : RenderMean16Bit_arm64_neon;
+    else
+#endif
+        return pixel_size & 1 ? RenderMean8Bit_c : RenderMean16Bit_c;
 }
 
 /*****************************************************************************
  * RenderBlend: Full-resolution blender
  *****************************************************************************/
 
-int RenderBlend( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
+#define RENDER_BLEND(merge, bpc, feature)                                   \
+static int RenderBlend##bpc##Bit_##feature( filter_t *p_filter,             \
+                                            picture_t *p_outpic,            \
+                                            picture_t *p_pic )              \
+{                                                                           \
+    VLC_UNUSED(p_filter);                                                   \
+    int i_plane;                                                            \
+                                                                            \
+    /* Copy image and skip lines */                                         \
+    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )              \
+    {                                                                       \
+        uint8_t *p_in, *p_out_end, *p_out;                                  \
+                                                                            \
+        p_in = p_pic->p[i_plane].p_pixels;                                  \
+                                                                            \
+        p_out = p_outpic->p[i_plane].p_pixels;                              \
+        p_out_end = p_out + p_outpic->p[i_plane].i_pitch                    \
+                             * p_outpic->p[i_plane].i_visible_lines;        \
+                                                                            \
+        /* First line: simple copy */                                       \
+        memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );                   \
+        p_out += p_outpic->p[i_plane].i_pitch;                              \
+                                                                            \
+        /* Remaining lines: mean value */                                   \
+        for( ; p_out < p_out_end ; )                                        \
+        {                                                                   \
+            merge( p_out, p_in, p_in + p_pic->p[i_plane].i_pitch,           \
+                   p_pic->p[i_plane].i_pitch );                             \
+                                                                            \
+            p_out += p_outpic->p[i_plane].i_pitch;                          \
+            p_in  += p_pic->p[i_plane].i_pitch;                             \
+        }                                                                   \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
+#define RENDER_BLEND_SIMD(bpc, feature) \
+    RENDER_BLEND(Merge##bpc##Bit##feature, bpc, feature)
+#define RENDER_BLEND_ARM(bpc, feature) \
+    RENDER_BLEND(merge##bpc##_##feature, bpc, feature)
+
+RENDER_BLEND(Merge8BitGeneric, 8, c)
+RENDER_BLEND(Merge16BitGeneric, 16, c)
+#if defined(CAN_COMPILE_SSE2)
+RENDER_BLEND_SIMD(8, SSE2)
+RENDER_BLEND_SIMD(16, SSE2)
+#endif
+#if defined(CAN_COMPILE_ARM)
+RENDER_BLEND_ARM(8, arm_neon)
+RENDER_BLEND_ARM(16, arm_neon)
+RENDER_BLEND_ARM(8, armv6)
+RENDER_BLEND_ARM(16, armv6)
+#endif
+#if defined(CAN_COMPILE_SVE)
+RENDER_BLEND_ARM(8, arm_sve)
+RENDER_BLEND_ARM(16, arm_sve)
+#endif
+#if defined(CAN_COMPULE_ARM64)
+RENDER_BLEND_ARM(8, arm64_neon)
+RENDER_BLEND_ARM(16, arm64_neon)
+#endif
+
+single_pic_renderer_t BlendRenderer(unsigned pixel_size)
 {
-    int i_plane;
-
-    filter_sys_t *p_sys = p_filter->p_sys;
-
-    /* Copy image and skip lines */
-    for( i_plane = 0 ; i_plane < p_pic->i_planes ; i_plane++ )
-    {
-        uint8_t *p_in, *p_out_end, *p_out;
-
-        p_in = p_pic->p[i_plane].p_pixels;
-
-        p_out = p_outpic->p[i_plane].p_pixels;
-        p_out_end = p_out + p_outpic->p[i_plane].i_pitch
-                             * p_outpic->p[i_plane].i_visible_lines;
-
-        /* First line: simple copy */
-        memcpy( p_out, p_in, p_pic->p[i_plane].i_pitch );
-        p_out += p_outpic->p[i_plane].i_pitch;
-
-        /* Remaining lines: mean value */
-        for( ; p_out < p_out_end ; )
-        {
-            Merge( p_out, p_in, p_in + p_pic->p[i_plane].i_pitch,
-                   p_pic->p[i_plane].i_pitch );
-
-            p_out += p_outpic->p[i_plane].i_pitch;
-            p_in  += p_pic->p[i_plane].i_pitch;
-        }
-    }
-    return VLC_SUCCESS;
+#if defined(CAN_COMPILE_SSE2)
+    if (vlc_CPU_SSE2())
+        return pixel_size & 1 ? RenderBlend8Bit_SSE2 : RenderBlend16Bit_SSE2;
+    else
+#endif
+#if defined(CAN_COMPILE_ARM)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderBlend8Bit_arm_neon : RenderBlend16Bit_arm_neon;
+    else
+    if (vlc_CPU_ARMv6())
+        return pixel_size & 1 ? RenderBlend8Bit_armv6 : RenderBlend16Bit_armv6;
+    else
+#endif
+#if defined(CAN_COMPILE_SVE)
+    if (vlc_CPU_ARM_SVE())
+        return pixel_size & 1 ? RenderBlend8Bit_arm_sve : RenderBlend16Bit_arm_sve;
+    else
+#endif
+#if defined(CAN_COMPULE_ARM64)
+    if (vlc_CPU_ARM_NEON())
+        return pixel_size & 1 ? RenderBlend8Bit_arm64_neon : RenderBlend16Bit_arm64_neon;
+    else
+#endif
+        return pixel_size & 1 ? RenderBlend8Bit_c : RenderBlend16Bit_c;
 }

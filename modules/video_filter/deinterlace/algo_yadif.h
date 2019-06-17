@@ -82,12 +82,11 @@ struct picture_t;
  * @retval VLC_EGENERIC Frame dropped; only occurs at the second frame after start.
  * @see Deinterlace()
  */
-int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
-                 int i_order, int i_field );
+ordered_renderer_t YadifRenderer(unsigned pixel_size);
 
 /**
  * Same as RenderYadif() but with no temporal references
  */
-int RenderYadifSingle( filter_t *p_filter, picture_t *p_dst, picture_t *p_src );
+single_pic_renderer_t YadifSingleRenderer(unsigned pixel_size);
 
 #endif
