@@ -48,7 +48,7 @@ struct picture_t;
  * @see RenderBob()
  * @see Deinterlace()
  */
-int RenderDiscard( filter_t *, picture_t *p_outpic, picture_t *p_pic );
+single_pic_renderer_t DiscardRenderer(unsigned pixel_size);
 
 /**
  * RenderBob: basic framerate doubler.
@@ -63,8 +63,7 @@ int RenderDiscard( filter_t *, picture_t *p_outpic, picture_t *p_pic );
  * @see RenderLinear()
  * @see Deinterlace()
  */
-int RenderBob( filter_t *,
-               picture_t *p_outpic, picture_t *p_pic, int order, int i_field );
+ordered_renderer_t BobRenderer(unsigned pixel_size);
 
 /**
  * RenderLinear: Bob with linear interpolation.
@@ -78,8 +77,7 @@ int RenderBob( filter_t *,
  * @see RenderBob()
  * @see Deinterlace()
  */
-int RenderLinear( filter_t *p_filter,
-                  picture_t *p_outpic, picture_t *p_pic, int order, int i_field );
+ordered_renderer_t LinearRenderer(unsigned pixel_size);
 
 /**
  * RenderMean: half-resolution blender.
@@ -93,7 +91,7 @@ int RenderLinear( filter_t *p_filter,
  * @param p_pic Input frame. Must exist.
  * @see Deinterlace()
  */
-int RenderMean( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic );
+single_pic_renderer_t MeanRenderer(unsigned pixel_size);
 
 /**
  * RenderBlend: full-resolution blender.
@@ -108,6 +106,6 @@ int RenderMean( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic );
  * @param p_pic Input frame. Must exist.
  * @see Deinterlace()
  */
-int RenderBlend( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic );
+single_pic_renderer_t BlendRenderer(unsigned pixel_size);
 
 #endif

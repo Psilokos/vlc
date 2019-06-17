@@ -276,9 +276,9 @@ static void DarkenFieldMMX( picture_t *p_dst,
  *****************************************************************************/
 
 /* See header for function doc. */
-int RenderPhosphor( filter_t *p_filter,
-                    picture_t *p_dst, picture_t *p_pic,
-                    int i_order, int i_field )
+static int RenderPhosphor( filter_t *p_filter,
+                           picture_t *p_dst, picture_t *p_pic,
+                           int i_order, int i_field )
 {
     VLC_UNUSED(p_pic);
     assert( p_filter != NULL );
@@ -369,4 +369,10 @@ int RenderPhosphor( filter_t *p_filter,
                 p_sys->chroma->p[2].h.num == p_sys->chroma->p[2].h.den );
     }
     return VLC_SUCCESS;
+}
+
+ordered_renderer_t PhosphorRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderPhosphor;
 }
