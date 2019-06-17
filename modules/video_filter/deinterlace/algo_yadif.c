@@ -46,13 +46,8 @@
    Necessary preprocessor macros are defined in common.h. */
 #include "yadif.h"
 
-int RenderYadifSingle( filter_t *p_filter, picture_t *p_dst, picture_t *p_src )
-{
-    return RenderYadif( p_filter, p_dst, p_src, 0, 0 );
-}
-
-int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
-                 int i_order, int i_field )
+static int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
+                        int i_order, int i_field )
 {
     VLC_UNUSED(p_src);
 
@@ -184,8 +179,9 @@ int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
                  as set by Open() or SetFilterMethod(). It is always 0. */
 
         /* FIXME not good as it does not use i_order/i_field */
-        RenderX( p_filter, p_dst, p_next );
-        return VLC_SUCCESS;
+        const vlc_chroma_description_t *chroma =
+            vlc_fourcc_GetChromaDescription( p_filter->fmt_in.video.i_chroma );
+        return XRenderer( chroma->pixel_size )( p_filter, p_dst, p_next );
     }
     else
     {
@@ -193,4 +189,21 @@ int RenderYadif( filter_t *p_filter, picture_t *p_dst, picture_t *p_src,
 
         return VLC_EGENERIC;
     }
+}
+
+static int RenderYadifSingle( filter_t *p_filter, picture_t *p_dst, picture_t *p_src )
+{
+    return RenderYadif( p_filter, p_dst, p_src, 0, 0 );
+}
+
+ordered_renderer_t YadifRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderYadif;
+}
+
+single_pic_renderer_t YadifSingleRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderYadifSingle;
 }

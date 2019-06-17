@@ -49,6 +49,6 @@ struct picture_t;
  * @param[out] p_outpic Output frame. Must be allocated by caller.
  * @see Deinterlace()
  */
-int RenderX( filter_t *, picture_t *p_outpic, picture_t *p_pic );
+single_pic_renderer_t XRenderer(unsigned pixel_size);
 
 #endif
