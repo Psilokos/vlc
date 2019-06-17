@@ -33,7 +33,12 @@ struct picture_t;
 struct vlc_object_t;
 
 #include <vlc_common.h>
+#include <vlc_fourcc.h>
 #include <vlc_mouse.h>
+
+typedef int (*single_pic_renderer_t)(filter_t *, picture_t *, picture_t *);
+typedef int (*ordered_renderer_t)(filter_t *, picture_t *, picture_t *,
+                                  int order, int field);
 
 /* Local algorithm headers */
 #include "algo_basic.h"
