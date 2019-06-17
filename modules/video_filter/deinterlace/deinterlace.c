@@ -340,36 +340,35 @@ struct filter_mode_t
 {
     const char           *psz_mode;
     union {
-    int (*pf_render_ordered)(filter_t *, picture_t *p_dst, picture_t *p_pic,
-                             int order, int i_field);
-    int (*pf_render_single_pic)(filter_t *, picture_t *p_dst, picture_t *p_pic);
+    ordered_renderer_t (*pf_ordered_renderer)( unsigned pixel_size );
+    single_pic_renderer_t (*pf_single_pic_renderer)( unsigned pixel_size );
     };
     deinterlace_algo     settings;
     bool                 can_pack;         /**< can handle packed pixel */
     bool                 b_high_bit_depth; /**< can handle high bit depth */
 };
 static struct filter_mode_t filter_mode [] = {
-    { "discard", .pf_render_single_pic = RenderDiscard,
+    { "discard", .pf_single_pic_renderer = DiscardRenderer,
                  { false, false, false, true }, true, true },
-    { "bob", .pf_render_ordered = RenderBob,
+    { "bob", .pf_ordered_renderer = BobRenderer,
                  { true, false, false, false }, true, true },
-    { "progressive-scan", .pf_render_ordered = RenderBob,
+    { "progressive-scan", .pf_ordered_renderer = BobRenderer,
                  { true, false, false, false }, true, true },
-    { "linear", .pf_render_ordered = RenderLinear,
+    { "linear", .pf_ordered_renderer = LinearRenderer,
                  { true, false, false, false }, true, true },
-    { "mean", .pf_render_single_pic = RenderMean,
+    { "mean", .pf_single_pic_renderer = MeanRenderer,
                  { false, false, false, true }, true, true },
-    { "blend", .pf_render_single_pic = RenderBlend,
+    { "blend", .pf_single_pic_renderer = BlendRenderer,
                  { false, false, false, false }, true, true },
-    { "yadif", .pf_render_single_pic = RenderYadifSingle,
+    { "yadif", .pf_single_pic_renderer = YadifSingleRenderer,
                  { false, true, false, false }, false, true },
-    { "yadif2x", .pf_render_ordered = RenderYadif,
+    { "yadif2x", .pf_ordered_renderer = YadifRenderer,
                  { true, true, false, false }, false, true },
-    { "x", .pf_render_single_pic = RenderX,
+    { "x", .pf_single_pic_renderer = XRenderer,
                  { false, false, false, false }, false, false },
-    { "phosphor", .pf_render_ordered = RenderPhosphor,
+    { "phosphor", .pf_ordered_renderer = PhosphorRenderer,
                  { true, true, false, false }, false, false },
-    { "ivtc", .pf_render_single_pic = RenderIVTC,
+    { "ivtc", .pf_single_pic_renderer = IVTCRenderer,
                  { false, true, true, false }, false, false },
 };
 
@@ -407,10 +406,16 @@ static void SetFilterMethod( filter_t *p_filter, const char *mode, bool pack )
                 SetFilterMethod( p_filter, "blend", pack );
                 return;
             }
-
             msg_Dbg( p_filter, "using %s deinterlace method", mode );
+
+            const vlc_fourcc_t fourcc = p_filter->fmt_in.video.i_chroma;
+            const vlc_chroma_description_t *chroma =
+                vlc_fourcc_GetChromaDescription( fourcc );
+            assert( chroma->pixel_size < 2 );
+
             p_sys->context.settings = filter_mode[i].settings;
-            p_sys->context.pf_render_ordered = filter_mode[i].pf_render_ordered;
+            p_sys->context.pf_render_ordered =
+                filter_mode[i].pf_ordered_renderer( chroma->pixel_size );
             return;
         }
     }
@@ -539,7 +544,7 @@ notsupp:
 
 #if defined(CAN_COMPILE_C_ALTIVEC)
     if( pixel_size == 1 && vlc_CPU_ALTIVEC() )
-        p_sys->pf_merge = MergeAltivec;
+        p_sys->pf_merge = Merge8BitAltivec;
     else
 #endif
 #if defined(CAN_COMPILE_SSE2)
@@ -553,7 +558,7 @@ notsupp:
 #if defined(CAN_COMPILE_MMXEXT)
     if( pixel_size == 1 && vlc_CPU_MMXEXT() )
     {
-        p_sys->pf_merge = MergeMMXEXT;
+        p_sys->pf_merge = Merge8BitMMXEXT;
         p_sys->pf_end_merge = EndMMX;
     }
     else
@@ -561,7 +566,7 @@ notsupp:
 #if defined(CAN_COMPILE_3DNOW)
     if( pixel_size == 1 && vlc_CPU_3dNOW() )
     {
-        p_sys->pf_merge = Merge3DNow;
+        p_sys->pf_merge = Merge8Bit3DNow;
         p_sys->pf_end_merge = End3DNow;
     }
     else

@@ -69,8 +69,8 @@ void Merge16BitGeneric( void *_p_dest, const void *_p_s1,
 
 #if defined(CAN_COMPILE_MMXEXT)
 VLC_MMX
-void MergeMMXEXT( void *_p_dest, const void *_p_s1, const void *_p_s2,
-                  size_t i_bytes )
+void Merge8BitMMXEXT( void *_p_dest, const void *_p_s1, const void *_p_s2,
+                      size_t i_bytes )
 {
     uint8_t *p_dest = _p_dest;
     const uint8_t *p_s1 = _p_s1;
@@ -95,7 +95,7 @@ void MergeMMXEXT( void *_p_dest, const void *_p_s1, const void *_p_s2,
 
 #if defined(CAN_COMPILE_3DNOW)
 VLC_MMX
-void Merge3DNow( void *_p_dest, const void *_p_s1, const void *_p_s2,
+void Merge8Bit3DNow( void *_p_dest, const void *_p_s1, const void *_p_s2,
                  size_t i_bytes )
 {
     uint8_t *p_dest = _p_dest;
@@ -178,7 +178,7 @@ void Merge16BitSSE2( void *_p_dest, const void *_p_s1, const void *_p_s2,
 #endif
 
 #ifdef CAN_COMPILE_C_ALTIVEC
-void MergeAltivec( void *_p_dest, const void *_p_s1,
+void Merge8BitAltivec( void *_p_dest, const void *_p_s1,
                    const void *_p_s2, size_t i_bytes )
 {
     uint8_t *p_dest = _p_dest;

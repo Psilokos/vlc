@@ -109,7 +109,7 @@ void Merge16BitGeneric( void *_p_dest, const void *_p_s1, const void *_p_s2,
  * @param _p_s2 Source line B
  * @param i_bytes Number of bytes to merge
  */
-void MergeAltivec ( void *, const void *, const void *, size_t );
+void Merge8BitAltivec ( void *, const void *, const void *, size_t );
 #endif
 
 #if defined(CAN_COMPILE_MMXEXT)
@@ -121,7 +121,7 @@ void MergeAltivec ( void *, const void *, const void *, size_t );
  * @param _p_s2 Source line B
  * @param i_bytes Number of bytes to merge
  */
-void MergeMMXEXT  ( void *, const void *, const void *, size_t );
+void Merge8BitMMXEXT  ( void *, const void *, const void *, size_t );
 #endif
 
 #if defined(CAN_COMPILE_3DNOW)
@@ -133,7 +133,7 @@ void MergeMMXEXT  ( void *, const void *, const void *, size_t );
  * @param _p_s2 Source line B
  * @param i_bytes Number of bytes to merge
  */
-void Merge3DNow   ( void *, const void *, const void *, size_t );
+void Merge8Bit3DNow   ( void *, const void *, const void *, size_t );
 #endif
 
 #if defined(CAN_COMPILE_SSE)

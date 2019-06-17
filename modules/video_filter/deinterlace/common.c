@@ -264,6 +264,7 @@ picture_t *DoDeinterlacing( filter_t *p_filter,
     /* Render */
     if ( !p_context->settings.b_double_rate )
     {
+        fprintf(stderr, "%p\n", p_context->pf_render_single_pic);
         if ( p_context->pf_render_single_pic( p_filter, p_dst[0], p_pic ) )
             goto drop;
     }

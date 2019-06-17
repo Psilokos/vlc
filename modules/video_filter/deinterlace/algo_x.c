@@ -511,7 +511,7 @@ static inline void XDeintBand8x8MMXEXT( uint8_t *dst, int i_dst,
  * Public functions
  *****************************************************************************/
 
-int RenderX( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
+static int RenderX( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
 {
     VLC_UNUSED(p_filter);
     int i_plane;
@@ -570,4 +570,10 @@ int RenderX( filter_t *p_filter, picture_t *p_outpic, picture_t *p_pic )
         emms();
 #endif
     return VLC_SUCCESS;
+}
+
+single_pic_renderer_t XRenderer(unsigned pixel_size)
+{
+    VLC_UNUSED(pixel_size);
+    return RenderX;
 }
