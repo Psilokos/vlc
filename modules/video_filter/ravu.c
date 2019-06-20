@@ -1413,19 +1413,6 @@ modulo(float const x, float const y)
     return x - y * floorf(x / y);
 }
 
-void vlc_ravu_compute_abd_avx512(uint8_t const *pixels,
-                                 uint32_t *aptr,
-                                 int32_t *bptr,
-                                 uint32_t *cptr);
-
-void vlc_ravu_shuffle_weights_avx512(int16_t *shuf_weights, int16_t const *weights,
-                                     unsigned width, unsigned height);
-
-void vlc_ravu_compute_pixels_avx512(uint8_t *omtx, uint8_t const *imtx,
-                                    int16_t const *weights,
-                                    unsigned width, unsigned height,
-                                    ptrdiff_t stride, ptrdiff_t wstride);
-
 struct thread_ctx
 {
     uint8_t *omtx;
@@ -1441,7 +1428,7 @@ struct thread_ctx
 };
 
 static inline void *
-pass_0_gather_weights(void *arg)
+pass_0_thread(void *arg)
 {
     struct thread_ctx *ctx = (typeof(ctx))arg;
     unsigned x = ctx->x;
@@ -1449,47 +1436,114 @@ pass_0_gather_weights(void *arg)
     {
         for (; x < ctx->width && ctx->num_pix > 0; ++x, --ctx->num_pix)
         {
-            uint32_t a_;
-            int32_t b_;
-            uint32_t d_;
+            /* left */
+            struct vec4f g0 = gather4(ctx->imtx + x, -2, -2, ctx->stride);
+            struct vec4f g1 = gather4(ctx->imtx + x, -2,  0, ctx->stride);
+            struct vec4f g2 = gather4(ctx->imtx + x, -2, +2, ctx->stride);
+            /* middle */
+            struct vec4f g3 = gather4(ctx->imtx + x,  0, -2, ctx->stride);
+            struct vec4f g4 = gather4(ctx->imtx + x,  0,  0, ctx->stride);
+            struct vec4f g5 = gather4(ctx->imtx + x,  0, +2, ctx->stride);
+            /* right */
+            struct vec4f g6 = gather4(ctx->imtx + x, +2, -2, ctx->stride);
+            struct vec4f g7 = gather4(ctx->imtx + x, +2,  0, ctx->stride);
+            struct vec4f g8 = gather4(ctx->imtx + x, +2, +2, ctx->stride);
 
-            uint8_t pixels[6 * 8] = {0};
-            for (int i = 0; i < 6; ++i)
-                for (int j = 0; j < 6; ++j)
-                    pixels[i * 8 + j] =
-                        ctx->imtx[(int)x + (i - 2) * ctx->stride + (j - 2)];
-            vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
+            struct vec3f abd = {0};
+            float gx, gy;
+            gx = (g3.a - g0.a) / 2.f;
+            gy = (g1.c - g0.c) / 2.f;
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
+            gx = (g4.d - g1.d) / 2.f;
+            gy = (-g2.c + 8.f * g1.b - 8.f * g0.b + g0.c) / 12.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (g4.a - g1.a) / 2.f;
+            gy = (-g2.b + 8.f * g2.c - 8.f * g1.c + g0.b) / 12.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (g5.d - g2.d) / 2.f;
+            gy = (g2.b - g1.b) / 2.f;
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
+            gx = (-g6.a + 8.f * g3.b - 8.f * g0.b + g0.a) / 12.f;
+            gy = (g4.d - g3.d) / 2.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (-g7.d + 8.f * g4.c - 8.f * g1.c + g1.d) / 12.f;
+            gy = (-g5.d + 8.f * g4.a - 8.f * g3.a + g3.d) / 12.f;
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
+            gx = (-g7.a + 8.f * g4.b - 8.f * g1.b + g1.a) / 12.f;
+            gy = (-g5.a + 8.f * g5.d - 8.f * g4.d + g3.a) / 12.f;
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
+            gx = (-g8.d + 8.f * g5.c - 8.f * g2.c + g2.d) / 12.f;
+            gy = (g5.a - g4.a) / 2.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (-g6.b + 8.f * g6.a - 8.f * g3.a + g0.b) / 12.f;
+            gy = (g4.c - g3.c) / 2.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (-g7.c + 8.f * g7.d - 8.f * g4.d + g1.c) / 12.f;
+            gy = (-g5.c + 8.f * g4.b - 8.f * g3.b + g3.c) / 12.f;
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
+            gx = (-g7.b + 8.f * g7.a - 8.f * g4.a + g1.b) / 12.f;
+            gy = (-g5.b + 8.f * g5.c - 8.f * g4.c + g3.b) / 12.f;
+            calc_abd(&abd, gx, gy, 0.07901060453704994);
+            gx = (-g8.c + 8.f * g8.d - 8.f * g5.d + g2.c) / 12.f;
+            gy = (g5.b - g4.b) / 2.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (g6.b - g3.b) / 2.f;
+            gy = (g7.d - g6.d) / 2.f;
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
+            gx = (g7.c - g4.c) / 2.f;
+            gy = (-g8.d + 8.f * g7.a - 8.f * g6.a + g6.d) / 12.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (g7.b - g4.b) / 2.f;
+            gy = (-g8.a + 8.f * g8.d - 8.f * g7.d + g6.a) / 12.f;
+            calc_abd(&abd, gx, gy, 0.06153352068439959);
+            gx = (g8.c - g5.c) / 2.f;
+            gy = (g8.a - g7.a) / 2.f;
+            calc_abd(&abd, gx, gy, 0.04792235409415088);
 
-            float a = a_ / (255.f * 255.f);
-            float b = b_ / (255.f * 255.f);
-            float d = d_ / (255.f * 255.f);
-
+            float a = abd.a;
+            float b = abd.b;
+            float d = abd.c;
             float T = a + d;
             float D = a * d - b * b;
             float delta = sqrtf(fmaxf(T * T / 4.0 - D, .0f));
-
             float L1 = T / 2.f + delta;
             float L2 = T / 2.f - delta;
             float sqrtL1 = sqrtf(L1);
             float sqrtL2 = sqrtf(L2);
-
             float theta = linear_interpolation(
                     modulo(atan2f(L1 - a, b) + M_PI, M_PI), .0f, fabsf(b) < 1.192092896e-7);
             float lambda = sqrtL1;
             float mu = linear_interpolation(
                     (sqrtL1 - sqrtL2) / (sqrtL1 + sqrtL2), .0f, sqrtL1 + sqrtL2 < 1.192092896e-7);
-
             float angle = floorf(theta * 24.f / M_PI);
             float strength = VLC_CLIP(floorf(log2f(lambda * 2000.f + 1.192092896e-7)), .0f, 8.f);
             float coherence = linear_interpolation(
                     linear_interpolation(.0f, 1.f, mu >= .25f), 2.f, mu >= .5f);
-
             float coord_y = ((angle * 9.f + strength) * 3.f + coherence + .5f);
 
-            memcpy(ctx->weights + y * ctx->wstride + x * 18,
-                   lut_weights + (int)floorf(coord_y) * 18,
-                   18 * sizeof(int16_t));
+            int32_t res = .0f;
+            int16_t const *weights = lut_weights + (int)floorf(coord_y) * 18;
+            res += (int)(roundf(g0.d * 255.f) + roundf(g8.b * 255.f)) * weights[0];
+            res += (int)(roundf(g0.a * 255.f) + roundf(g8.c * 255.f)) * weights[1];
+            res += (int)(roundf(g1.d * 255.f) + roundf(g7.b * 255.f)) * weights[2];
+            res += (int)(roundf(g1.a * 255.f) + roundf(g7.c * 255.f)) * weights[3];
+            res += (int)(roundf(g2.d * 255.f) + roundf(g6.b * 255.f)) * weights[4];
+            res += (int)(roundf(g2.a * 255.f) + roundf(g6.c * 255.f)) * weights[5];
+            res += (int)(roundf(g0.c * 255.f) + roundf(g8.a * 255.f)) * weights[6];
+            res += (int)(roundf(g0.b * 255.f) + roundf(g8.d * 255.f)) * weights[7];
+            res += (int)(roundf(g1.c * 255.f) + roundf(g7.a * 255.f)) * weights[8];
+            res += (int)(roundf(g1.b * 255.f) + roundf(g7.d * 255.f)) * weights[9];
+            res += (int)(roundf(g2.c * 255.f) + roundf(g6.a * 255.f)) * weights[10];
+            res += (int)(roundf(g2.b * 255.f) + roundf(g6.d * 255.f)) * weights[11];
+            res += (int)(roundf(g3.d * 255.f) + roundf(g5.b * 255.f)) * weights[12];
+            res += (int)(roundf(g3.a * 255.f) + roundf(g5.c * 255.f)) * weights[13];
+            res += (int)(roundf(g4.d * 255.f) + roundf(g4.b * 255.f)) * weights[14];
+            res += (int)(roundf(g4.a * 255.f) + roundf(g4.c * 255.f)) * weights[15];
+            res += (int)(roundf(g5.d * 255.f) + roundf(g3.b * 255.f)) * weights[16];
+            res += (int)(roundf(g5.a * 255.f) + roundf(g3.c * 255.f)) * weights[17];
+            ctx->omtx[x] = VLC_CLIP(ROUND2(res, 15), 0, 255);
         }
+        ctx->omtx += ctx->stride;
         ctx->imtx += ctx->stride;
         x = 0;
     }
@@ -1515,6 +1569,7 @@ Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
         ctx[i] = (typeof(*ctx))
         {
             .imtx = imtx + y * stride,
+            .omtx = omtx + y * stride,
             .weights = weights,
             .x = x, .y = y,
             .width = width,
@@ -1522,15 +1577,12 @@ Filter_pass_0(uint8_t *omtx, uint8_t const *imtx,
             .stride = stride,
             .wstride = 18 * stride,
         };
-        if (vlc_clone(threads + i, pass_0_gather_weights,
+        if (vlc_clone(threads + i, pass_0_thread,
                       ctx + i, VLC_THREAD_PRIORITY_HIGHEST))
             return VLC_EGENERIC;
     }
     for (int i = 0; i < NUM_THREADS; ++i)
         vlc_join(threads[i], NULL);
-
-    vlc_ravu_shuffle_weights_avx512(shuf_weights, weights, stride, height);
-    vlc_ravu_compute_pixels_avx512(omtx, imtx, shuf_weights, width, height, stride, 18 * stride);
 
     omtx -= 2;
     memcpy(omtx - 1 * stride, omtx, stride);
