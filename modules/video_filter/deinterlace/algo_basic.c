@@ -202,6 +202,36 @@ static int RenderLinear##bpc##Bit##feature( filter_t *p_filter,             \
     return VLC_SUCCESS;                                                     \
 }
 
+static int RenderLinear8BitSSE2( filter_t *filter,
+                                 picture_t *opic, picture_t *ipic,
+                                 int order, int field )
+{
+    VLC_UNUSED(filter); VLC_UNUSED(order);
+    for( int plane = 0 ; plane < p_pic->i_planes ; ++plane )
+        vlcpriv_deint_linear_8bit_sse2(opic->p[plane].p_pixels,
+                                       ipic->p[plane].p_pixels,
+                                       opic->p[plane].i_visible_pitch,
+                                       opic->p[plane].i_visible_lines,
+                                       opic->p[plane].i_pitch,
+                                       field);
+    return VLC_SUCCESS;
+}
+
+static int RenderLinear16BitSSE2( filter_t *filter,
+                                  picture_t *opic, picture_t *ipic,
+                                  int order, int field )
+{
+    VLC_UNUSED(filter); VLC_UNUSED(order);
+    for( int plane = 0 ; plane < p_pic->i_planes ; ++plane )
+        vlcpriv_deint_linear_16bit_sse2(opic->p[plane].p_pixels,
+                                        ipic->p[plane].p_pixels,
+                                        opic->p[plane].i_visible_pitch / 2,
+                                        opic->p[plane].i_visible_lines,
+                                        opic->p[plane].i_pitch,
+                                        field);
+    return VLC_SUCCESS;
+}
+
 RENDER_LINEAR(Generic, 8)
 RENDER_LINEAR(Generic, 16)
 #if defined(CAN_COMPILE_C_ALTIVEC)
@@ -213,10 +243,6 @@ RENDER_LINEAR(MMXEXT, 8)
 #if defined(CAN_COMPILE_3DNOW)
 RENDER_LINEAR(3DNow, 8)
 #endif
-#if defined(CAN_COMPILE_SSE2)
-RENDER_LINEAR(SSE2, 8)
-RENDER_LINEAR(SSE2, 16)
-#endif
 
 ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
@@ -225,11 +251,9 @@ ordered_renderer_t LinearRenderer(unsigned pixel_size)
         return RenderLinear8BitAltivec;
     else
 #endif
-#if defined(CAN_COMPILE_SSE2)
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderLinear8BitSSE2: RenderLinear16BitSSE2;
     else
-#endif
 #if defined(CAN_COMPILE_MMXEXT)
     if (pixel_size & 1 && vlc_CPU_MMXEXT())
         return RenderLinear8BitMMXEXT;
