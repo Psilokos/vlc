@@ -142,11 +142,11 @@ ordered_renderer_t BobRenderer(unsigned pixel_size)
  * RenderLinear: BOB with linear interpolation
  *****************************************************************************/
 
-#define RENDER_LINEAR(feature, bpc)                                         \
-static int RenderLinear##bpc##Bit##feature( filter_t *p_filter,             \
-                                            picture_t *p_outpic,            \
-                                            picture_t *p_pic,               \
-                                            int order, int i_field )        \
+#define RENDER_LINEAR_C(bpc)                                                \
+static int RenderLinear##bpc##Bit_c( filter_t *p_filter,                    \
+                                     picture_t *p_outpic,                   \
+                                     picture_t *p_pic,                      \
+                                     int order, int i_field )               \
 {                                                                           \
     VLC_UNUSED(p_filter); VLC_UNUSED(order);                                \
     int i_plane;                                                            \
@@ -178,8 +178,8 @@ static int RenderLinear##bpc##Bit##feature( filter_t *p_filter,             \
             p_out += p_outpic->p[i_plane].i_pitch;                          \
                                                                             \
             ptrdiff_t stride = p_pic->p[i_plane].i_pitch;                   \
-            Merge##bpc##Bit##feature( p_out, p_in,                          \
-                                      p_in + 2 * stride, stride);           \
+            Merge##bpc##BitGeneric( p_out, p_in,                            \
+                                    p_in + 2 * stride, stride);             \
                                                                             \
             p_in += 2 * p_pic->p[i_plane].i_pitch;                          \
             p_out += p_outpic->p[i_plane].i_pitch;                          \
@@ -198,21 +198,47 @@ static int RenderLinear##bpc##Bit##feature( filter_t *p_filter,             \
     return VLC_SUCCESS;                                                     \
 }
 
-RENDER_LINEAR(Generic, 8)
-RENDER_LINEAR(Generic, 16)
-#if defined(CAN_COMPILE_SSE2)
-RENDER_LINEAR(SSE2, 8)
-RENDER_LINEAR(SSE2, 16)
-#endif
+#define RENDER_LINEAR_SIMD(feature, bpc)                                    \
+                                                                            \
+void vlcpriv_deint_linear_##bpc##bit_##feature(uint8_t *dst,                \
+                                               ptrdiff_t dst_stride,        \
+                                               uint8_t const *src,          \
+                                               ptrdiff_t src_stride,        \
+                                               unsigned int w, unsigned h,  \
+                                               int field);                  \
+                                                                            \
+static int RenderLinear##bpc##Bit_##feature(filter_t *filter,               \
+                                            picture_t *opic,                \
+                                            picture_t *ipic,                \
+                                            int order, int field)           \
+{                                                                           \
+    VLC_UNUSED(filter); VLC_UNUSED(order);                                  \
+    for (int plane = 0 ; plane < ipic->i_planes ; ++plane)                  \
+    {                                                                       \
+        void *dst = opic->p[plane].p_pixels;                                \
+        void *src = ipic->p[plane].p_pixels;                                \
+        ptrdiff_t dst_stride = opic->p[plane].i_pitch;                      \
+        ptrdiff_t src_stride = opic->p[plane].i_pitch;                      \
+        unsigned int w = opic->p[plane].i_visible_pitch / (bpc / 8);        \
+        unsigned int h = opic->p[plane].i_visible_lines;                    \
+        vlcpriv_deint_linear_##bpc##bit_##feature(dst, dst_stride,          \
+                                                  src, src_stride,          \
+                                                  w, h, field);             \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
+RENDER_LINEAR_C(8)
+RENDER_LINEAR_C(16)
+RENDER_LINEAR_SIMD(sse2, 8)
+RENDER_LINEAR_SIMD(sse2, 16)
 
 ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
-#if defined(CAN_COMPILE_SSE2)
     if (vlc_CPU_SSE2())
-        return pixel_size & 1 ? RenderLinear8BitSSE2 : RenderLinear16BitSSE2;
+        return pixel_size & 1 ? RenderLinear8Bit_sse2 : RenderLinear16Bit_sse2;
     else
-#endif
-        return pixel_size & 1 ? RenderLinear8BitGeneric : RenderLinear16BitGeneric;
+        return pixel_size & 1 ? RenderLinear8Bit_c : RenderLinear16Bit_c;
 }
 
 /*****************************************************************************
