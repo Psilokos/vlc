@@ -175,6 +175,7 @@ test_modules_demux_ts_pes_SOURCES = modules/demux/ts_pes.c \
 test_modules_vfilter_deinterlace_simd_SOURCES = \
 				modules/video_filter/deinterlace.c \
 				$(top_srcdir)/modules/video_filter/deinterlace/algo_basic.c \
+				$(top_srcdir)/modules/video_filter/deinterlace/algo_basic_x86.asm \
 				$(top_srcdir)/modules/video_filter/deinterlace/merge.c
 test_modules_vfilter_deinterlace_simd_LDADD = $(LIBVLCCORE)
 
@@ -183,6 +184,7 @@ test_bench_asm_SOURCES = bench_asm/main.c \
 						 bench_asm/deinterlacing.c \
 						 $(top_srcdir)/modules/packetizer/startcode.asm \
 						 $(top_srcdir)/modules/video_filter/deinterlace/algo_basic.c \
+						 $(top_srcdir)/modules/video_filter/deinterlace/algo_basic_x86.asm \
 						 $(top_srcdir)/modules/video_filter/deinterlace/merge.c
 test_bench_asm_LDADD = $(LIBVLCCORE)
 
