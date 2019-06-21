@@ -197,16 +197,44 @@ static int RenderLinear##bpc##Bit_##feature( filter_t *p_filter,            \
     return VLC_SUCCESS;                                                     \
 }
 
-#define RENDER_LINEAR_SIMD(bpc, feature) \
-    RENDER_LINEAR(Merge##bpc##Bit##feature, bpc, feature)
+#define RENDER_LINEAR_SIMD(bpc, feature)                                    \
+                                                                            \
+void vlcpriv_deint_linear_##bpc##bit_##feature(uint8_t *dst,                \
+                                               ptrdiff_t dst_stride,        \
+                                               uint8_t const *src,          \
+                                               ptrdiff_t src_stride,        \
+                                               unsigned int w, unsigned h,  \
+                                               int field);                  \
+                                                                            \
+static int RenderLinear##bpc##Bit_##feature(filter_t *filter,               \
+                                            picture_t *opic,                \
+                                            picture_t *ipic,                \
+                                            int order, int field)           \
+{                                                                           \
+    VLC_UNUSED(filter); VLC_UNUSED(order);                                  \
+    for (int plane = 0 ; plane < ipic->i_planes ; ++plane)                  \
+    {                                                                       \
+        void *dst = opic->p[plane].p_pixels;                                \
+        void *src = ipic->p[plane].p_pixels;                                \
+        ptrdiff_t dst_stride = opic->p[plane].i_pitch;                      \
+        ptrdiff_t src_stride = opic->p[plane].i_pitch;                      \
+        unsigned int w = opic->p[plane].i_visible_pitch / (bpc / 8);        \
+        unsigned int h = opic->p[plane].i_visible_lines;                    \
+        vlcpriv_deint_linear_##bpc##bit_##feature(dst, dst_stride,          \
+                                                  src, src_stride,          \
+                                                  w, h, field);             \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
 #define RENDER_LINEAR_ARM(bpc, feature) \
     RENDER_LINEAR(merge##bpc##_##feature, bpc, feature)
 
 RENDER_LINEAR(Merge8BitGeneric, 8, c)
 RENDER_LINEAR(Merge16BitGeneric, 16, c)
-#if defined(CAN_COMPILE_SSE2)
-RENDER_LINEAR_SIMD(8, SSE2)
-RENDER_LINEAR_SIMD(16, SSE2)
+#if defined(__i386__) || defined(__x86_64__)
+RENDER_LINEAR_SIMD(8, sse2)
+RENDER_LINEAR_SIMD(16, sse2)
 #endif
 #if defined(CAN_COMPILE_ARM)
 RENDER_LINEAR_ARM(8, arm_neon)
@@ -225,9 +253,9 @@ RENDER_LINEAR_ARM(16, arm64_neon)
 
 ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
-#if defined(CAN_COMPILE_SSE2)
+#if defined(__i386__) || defined(__x86_64__)
     if (vlc_CPU_SSE2())
-        return pixel_size & 1 ? RenderLinear8Bit_SSE2 : RenderLinear16Bit_SSE2;
+        return pixel_size & 1 ? RenderLinear8Bit_sse2 : RenderLinear16Bit_sse2;
     else
 #endif
 #if defined(CAN_COMPILE_ARM)
