@@ -4,39 +4,29 @@
 #include "bench_asm.h"
 
 static libvlc_instance_t *libvlc;
-static filter_t *deinterlacer;
-
-/* FIXME for cpu features cycling, need to create / destroy filter in
- * bench function
- * init and destroy must handle everything but the deinterlacer module
- */
 
 static int
-init_deinterlacer(int vlc_argc, char const **vlc_argv)
+init_deinterlacer(char const *mode)
 {
-    libvlc = libvlc_new(vlc_argc, vlc_argv);
+    /* TODO:
+     * - do sout without muxing if possible */
+    libvlc = libvlc_new(2,
+            {
+                "http://streams.videolan.org/streams/ts/bbc_news_24-239.35.2.0_dvbsub.ts",
+                "--deinterlace-mode", mode
+            });
     assert(libvlc);
-
-    deinterlacer = vlc_custom_create(libvlc->p_libvlc_int,
-                                     sizeof(filter_t), "deinterlacer");
-    assert(deinterlacer);
-
-    deinterlacer->p_module =
-        module_need(deinterlacer, "video filter", "deinterlace", true);
-    assert(deinterlacer->p_module);
 }
 
 static int
 init_deinterlacer_linear(void)
 {
-    return init_deinterlacer(1, { "--deinterlace-mode=linear" });
+    return init_deinterlacer("linear");
 }
 
 static void
 destroy_deinterlacer(void)
 {
-    module_unneed(libvlc->p_libvlc_int, deinterlacer->p_module);
-    vlc_object_delete(deinterlacer);
     libvlc_release(libvlc);
 }
 
@@ -48,6 +38,7 @@ check_feature_deinterlacer(int flag)
 static void
 bench_deinterlacer(void)
 {
+    libvlc_playlist_play(libvlc);
 }
 
 void
