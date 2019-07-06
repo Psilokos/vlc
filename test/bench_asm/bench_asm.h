@@ -1,9 +1,14 @@
 #ifndef BENCH_ASM_H
 # define BENCH_ASM_H
 
-void bench_asm_register(int id, char const *name,
-                        int (*init)(void), void (*destroy)(void),
-                        int (*check_feature)(void), int (*bench));
+#include <stdint.h>
+
+void bench_asm_subscribe(int id, char const *name,
+                         int (*init)(void), void (*destroy)(void),
+                         int (*check_feature)(void), int (*bench));
+
+void subscribe_startcode_annexb(int id);
+void subscribe_linear_deinterlacer(int id);
 
 static inline uint64_t
 read_cycle_counter(void)

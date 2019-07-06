@@ -1,4 +1,5 @@
-#include <libvlc.h>
+#include <assert.h>
+#include <vlc/vlc.h>
 #include <vlc_filter.h>
 #include <vlc_modules.h>
 #include "bench_asm.h"
@@ -10,7 +11,7 @@ init_deinterlacer(char const *mode)
 {
     /* TODO:
      * - do sout without muxing if possible */
-    libvlc = libvlc_new(2,
+    libvlc = libvlc_new(2, (char const *[])
             {
                 "http://streams.videolan.org/streams/ts/bbc_news_24-239.35.2.0_dvbsub.ts",
                 "--deinterlace-mode", mode
@@ -35,18 +36,19 @@ check_feature_deinterlacer(int flag)
 {
 }
 
-static void
+static int
 bench_deinterlacer(void)
 {
     libvlc_playlist_play(libvlc);
+    return 0;
 }
 
 void
-register_linear_deinterlacing(int id)
+subscribe_linear_deinterlacer(int id)
 {
-    bench_asm_register(id, "linear deinterlacing",
-                       init_deinterlacer_linear,
-                       destroy_deinterlacer,
-                       check_feature_deinterlacer,
-                       bench_deinterlacer);
+    bench_asm_subscribe(id, "linear deinterlacer",
+                        init_deinterlacer_linear,
+                        destroy_deinterlacer,
+                        check_feature_deinterlacer,
+                        bench_deinterlacer);
 }

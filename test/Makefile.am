@@ -62,6 +62,9 @@ EXTRA_PROGRAMS = \
 	test_bench_asm \
 	$(NULL)
 
+EXTRA_LTLIBRARIES = \
+	test_bench_asm_deint_plugin.la
+
 #check_DATA = samples/test.sample samples/meta.sample
 EXTRA_DIST = \
 	samples/certs/certkey.pem \
@@ -153,6 +156,8 @@ test_bench_asm_SOURCES = bench_asm/main.c \
 						 bench_asm/startcode_annexb.c \
 						 bench_asm/deinterlacing.c \
 						 $(top_srcdir)/modules/packetizer/startcode.asm
+test_bench_asm_LDADD = $(LIBVLCCORE) $(LIBVLC) test_bench_asm_deint_plugin.la
+test_bench_asm_deint_plugin_SOURCES = bench_asm/deint_wrapper.c
 test_bench_asm_LDADD = ../src/libvlccore.la
 
 checkall:

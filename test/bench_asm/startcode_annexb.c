@@ -2,32 +2,11 @@
 # include "config.h"
 #endif
 
+#include <assert.h>
+#include <vlc_common.h>
 #include <vlc_cpu.h>
 #include "bench_asm.h"
-
-static uint32_t cpu_mask = 0;
-
-static inline void
-vlc_CPU_mask(unsigned cap)
-{
-    cpu_mask |= cap;
-}
-
-static inline void
-vlc_CPU_unmask(unsigned cap)
-{
-    cpu_mask &= ~cap;
-}
-
-static inline unsigned
-vlc_CPU_masked(void)
-{
-    return vlc_CPU() & ~cpu_mask;
-}
-
-#define vlc_CPU vlc_CPU_masked
-# include "../../modules/packetizer/startcode_helper.h"
-#undef vlc_CPU
+#include "../../modules/packetizer/startcode_helper.h"
 
 static uint8_t *buffer;
 
@@ -58,7 +37,7 @@ check_feature_startcode_FindAnnexB(int flag)
 }
 
 static unsigned int
-bench_startcode_FindAnnexB(char const *feature)
+bench_startcode_FindAnnexB(void)
 {
     uint8_t const *(*fct)(uint8_t const *ptr, uint8_t const *end)
         = startcode_FindAnnexB_helper();
@@ -76,11 +55,11 @@ bench_startcode_FindAnnexB(char const *feature)
 }
 
 void
-register_startcode_annexb(int id)
+subscribe_startcode_annexb(int id)
 {
-    bench_asm_register(id, "startcode_FindAnnexB",
-                       init_startcode_FindAnnexB,
-                       destroy_startcode_FindAnnexB,
-                       check_feature_startcode_FindAnnexB,
-                       bench_startcode_FindAnnexB);
+    bench_asm_subscribe(id, "startcode_FindAnnexB",
+                        init_startcode_FindAnnexB,
+                        destroy_startcode_FindAnnexB,
+                        check_feature_startcode_FindAnnexB,
+                        bench_startcode_FindAnnexB);
 }

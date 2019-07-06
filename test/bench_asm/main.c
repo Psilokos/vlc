@@ -10,13 +10,14 @@
 #include <stdlib.h>
 
 #include <vlc_common.h>
+#include <vlc_cpu.h>
 #include "bench_asm.h"
 
 static int logging = 1;
 
 static struct bench
 {
-    void (*register)(int id);
+    void (*subscribe)(int id);
     char const *name;
     int (*init)(void);
     void (*destroy)(void);
@@ -24,8 +25,8 @@ static struct bench
     void (*run)(void);
 } const benchmarks[] =
 {
-    { .register = register_startcode_annexb },
-    { .register = register_linear_deinterlacing },
+    { .subscribe = subscribe_startcode_annexb },
+    { .subscribe = subscribe_linear_deinterlacer },
     { 0 }
 };
 
@@ -54,7 +55,7 @@ main(/* int argc, char **argv */)
 {
     for (struct bench const *bench = benchmarks; bench->name; ++bench)
     {
-        bench->register((bench - benchmarks) / sizeof(*bench));
+        bench->subscribe((bench - benchmarks) / sizeof(*bench));
 
         printf("%s:\n", bench->name);
         int ret = bench->init();
@@ -69,9 +70,9 @@ main(/* int argc, char **argv */)
                 continue;
             toggle_log();
             for (int i = 0; i < 5; ++i) /* warm up phase */
-                bench->run(feature->name);
+                bench->run();
             toggle_log();
-            bench->run(feature->name);
+            bench->run();
         }
         bench->destroy();
         continue;
