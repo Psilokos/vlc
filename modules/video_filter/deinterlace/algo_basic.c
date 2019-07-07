@@ -202,12 +202,16 @@ static int RenderLinear##bpc##Bit##feature( filter_t *p_filter,             \
     return VLC_SUCCESS;                                                     \
 }
 
+extern void vlcpriv_deint_linear_8bit_sse2(uint8_t *dst, uint8_t const *src,
+                                           unsigned int w, unsigned h,
+                                           ptrdiff_t stride, int field);
+
 static int RenderLinear8BitSSE2( filter_t *filter,
                                  picture_t *opic, picture_t *ipic,
                                  int order, int field )
 {
     VLC_UNUSED(filter); VLC_UNUSED(order);
-    for( int plane = 0 ; plane < p_pic->i_planes ; ++plane )
+    for( int plane = 0 ; plane < ipic->i_planes ; ++plane )
         vlcpriv_deint_linear_8bit_sse2(opic->p[plane].p_pixels,
                                        ipic->p[plane].p_pixels,
                                        opic->p[plane].i_visible_pitch,
@@ -217,12 +221,16 @@ static int RenderLinear8BitSSE2( filter_t *filter,
     return VLC_SUCCESS;
 }
 
+extern void vlcpriv_deint_linear_16bit_sse2(uint8_t *dst, uint8_t const *src,
+                                            unsigned int w, unsigned h,
+                                            ptrdiff_t stride, int field);
+
 static int RenderLinear16BitSSE2( filter_t *filter,
                                   picture_t *opic, picture_t *ipic,
                                   int order, int field )
 {
     VLC_UNUSED(filter); VLC_UNUSED(order);
-    for( int plane = 0 ; plane < p_pic->i_planes ; ++plane )
+    for( int plane = 0 ; plane < ipic->i_planes ; ++plane )
         vlcpriv_deint_linear_16bit_sse2(opic->p[plane].p_pixels,
                                         ipic->p[plane].p_pixels,
                                         opic->p[plane].i_visible_pitch / 2,

@@ -36,7 +36,7 @@ check_feature_startcode_FindAnnexB(int flag)
     return has_impl;
 }
 
-static unsigned int
+static uint64_t
 bench_startcode_FindAnnexB(void)
 {
     uint8_t const *(*fct)(uint8_t const *ptr, uint8_t const *end)
@@ -51,6 +51,7 @@ bench_startcode_FindAnnexB(void)
         cycles += cycles_end - cycles_start;
         buffer[j] = 0;
     }
+    printf("%ld\n", cycles >> 12);
     return cycles >> 12;
 }
 

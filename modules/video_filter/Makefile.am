@@ -129,6 +129,7 @@ libdeinterlace_plugin_la_SOURCES = \
 	video_filter/deinterlace/merge.c video_filter/deinterlace/merge.h \
 	video_filter/deinterlace/helpers.c video_filter/deinterlace/helpers.h \
 	video_filter/deinterlace/algo_basic.c video_filter/deinterlace/algo_basic.h \
+	video_filter/deinterlace/algo_basic.asm \
 	video_filter/deinterlace/algo_x.c video_filter/deinterlace/algo_x.h \
 	video_filter/deinterlace/algo_yadif.c video_filter/deinterlace/algo_yadif.h \
 	video_filter/deinterlace/yadif.h \

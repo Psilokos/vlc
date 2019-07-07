@@ -5,7 +5,8 @@
 
 void bench_asm_subscribe(int id, char const *name,
                          int (*init)(void), void (*destroy)(void),
-                         int (*check_feature)(void), int (*bench));
+                         int (*check_feature)(int),
+                         uint64_t (*bench)(void));
 
 void subscribe_startcode_annexb(int id);
 void subscribe_linear_deinterlacer(int id);

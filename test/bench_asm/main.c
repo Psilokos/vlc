@@ -22,13 +22,25 @@ static struct bench
     int (*init)(void);
     void (*destroy)(void);
     int (*check_feature)(int flag);
-    void (*run)(void);
-} const benchmarks[] =
+    uint64_t (*run)(void);
+} benchmarks[] =
 {
     { .subscribe = subscribe_startcode_annexb },
     { .subscribe = subscribe_linear_deinterlacer },
     { 0 }
 };
+
+void
+bench_asm_subscribe(int id, char const *name,
+                    int (*init)(void), void (*destroy)(void),
+                    int (*check_feature)(int), uint64_t (*bench)(void))
+{
+    benchmarks[id].name = name;
+    benchmarks[id].init = init;
+    benchmarks[id].destroy = destroy;
+    benchmarks[id].check_feature = check_feature;
+    benchmarks[id].run = bench;
+}
 
 static struct cpu_feature
 {
@@ -44,18 +56,12 @@ static struct cpu_feature
     { 0 }
 };
 
-static inline void
-toggle_log(void)
-{
-    logging ^= 1;
-}
-
 int
 main(/* int argc, char **argv */)
 {
-    for (struct bench const *bench = benchmarks; bench->name; ++bench)
+    for (struct bench const *bench = benchmarks; bench->subscribe; ++bench)
     {
-        bench->subscribe((bench - benchmarks) / sizeof(*bench));
+        bench->subscribe(bench - benchmarks);
 
         printf("%s:\n", bench->name);
         int ret = bench->init();
@@ -68,11 +74,9 @@ main(/* int argc, char **argv */)
             vlc_CPU_unmask(feature->flag);
             if (feature->flag && !bench->check_feature(feature->flag))
                 continue;
-            toggle_log();
             for (int i = 0; i < 5; ++i) /* warm up phase */
                 bench->run();
-            toggle_log();
-            bench->run();
+            printf(" - %s: %lu\n", feature->name, bench->run());
         }
         bench->destroy();
         continue;
