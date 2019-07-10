@@ -1120,7 +1120,7 @@ AS_IF([test "${enable_optimizations}" != "no"], [
   ])
 
   dnl Check for fast maths
-  AX_APPEND_COMPILE_FLAGS([-fno-math-errno -funsafe-math-optimizations -fno-rounding-math -fno-signaling-nans -fcx-limited-range], [CFLAGS])
+  AX_APPEND_COMPILE_FLAGS([-fmath-errno -fno-unsafe-math-optimizations -fno-rounding-math -fno-signaling-nans -fcx-limited-range], [CFLAGS])
   AX_APPEND_COMPILE_FLAGS([-fno-math-errno -funsafe-math-optimizations -fno-rounding-math -fno-signaling-nans -fcx-limited-range], [CXXFLAGS])
 
 AH_BOTTOM([

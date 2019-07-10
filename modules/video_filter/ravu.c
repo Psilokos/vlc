@@ -1449,9 +1449,9 @@ pass_0_gather_weights(void *arg)
     {
         for (; x < ctx->width && ctx->num_pix > 0; ++x, --ctx->num_pix)
         {
-            uint32_t a_;
-            int32_t b_;
-            uint32_t d_;
+            volatile uint32_t a_;
+            volatile int32_t b_;
+            volatile uint32_t d_;
 
             uint8_t pixels[6 * 8] = {0};
             for (int i = 0; i < 6; ++i)
@@ -1460,9 +1460,9 @@ pass_0_gather_weights(void *arg)
                         ctx->imtx[(int)x + (i - 2) * ctx->stride + (j - 2)];
             vlc_ravu_compute_abd_avx512(pixels, &a_, &b_, &d_);
 
-            float a = a_ / (255.f * 255.f);
-            float b = b_ / (255.f * 255.f);
-            float d = d_ / (255.f * 255.f);
+            volatile float a = a_ / (255.f * 255.f);
+            volatile float b = b_ / (255.f * 255.f);
+            volatile float d = d_ / (255.f * 255.f);
 
             float T = a + d;
             float D = a * d - b * b;
