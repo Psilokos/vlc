@@ -13,7 +13,7 @@
 #include <vlc_picture.h>
 #include <vlc_plugin.h>
 
-#define ENABLE_BENCH 1
+#define ENABLE_BENCH 0
 #define NUM_THREADS 8
 
 #define ROUND2(x, n) (((x) + (1LL << ((n) - 1))) >> (n))
