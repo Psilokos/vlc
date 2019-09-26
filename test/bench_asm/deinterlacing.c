@@ -22,22 +22,18 @@ vlc_kill(void *arg)
 static int
 init_deinterlacer(char const *mode)
 {
-    system("cp lib_test_bench_asm_deint_plugin.la ../modules");
-    // FIXME file by file, and then delete them
-    // or cp everything to /tmp
-    system("cp -r .libs ../modules");
-
     /* TODO:
      * - do sout without muxing if possible */
-    setenv ("VLC_PLUGIN_PATH", "../modules", 1);
+    setenv ("VLC_PLUGIN_PATH", ".:../modules", 1);
     setenv ("VLC_DATA_PATH", "../share", 1);
     setenv ("VLC_LIB_PATH", "../modules", 1);
-    libvlc = libvlc_new(7, (char const *[])
+    libvlc = libvlc_new(10, (char const *[])
     {
         "--avcodec-hw=none", "--stop-time=5", "--play-and-exit",
-        //"--sout=#transcode{vcodec=h264,vb=1000,acodec='mp3',--vfilter=deinterlace}:std{access=file,dst=video.ts}",
+        "--sout=#transcode{vcodec=h264,venc=edummy}:file{dst=/dev/null,mux=raw}",
         "http://streams.videolan.org/streams/ts/bbc_news_24-239.35.2.0_dvbsub.ts",
-        "--deinterlace-mode", mode
+        "--sout-transcode-deinterlace", "--sout-deinterlace-mode", mode,
+        "--file-logging", "--logfile=/dev/null"
     });
     assert(libvlc);
 
@@ -84,9 +80,9 @@ bench_deinterlacer(void)
     libvlc_playlist_play(libvlc);
 
     int signum;
-    fprintf(stderr, "sigwait...\n");
+    // fprintf(stderr, "sigwait...\n");
     sigwait(&set, &signum);
-    fprintf(stderr, "sigwait DONE %d\n", signum);
+    // fprintf(stderr, "sigwait DONE %d\n", signum);
 
     return *(uint64_t const *)shm_addr;
 }

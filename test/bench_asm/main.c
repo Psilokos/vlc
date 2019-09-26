@@ -74,8 +74,10 @@ main(/* int argc, char **argv */)
             vlc_CPU_unmask(feature->flag);
             if (feature->flag && !bench->check_feature(feature->flag))
                 continue;
+#if 0
             for (int i = 0; i < 5; ++i) /* warm up phase */
                 bench->run();
+#endif
             printf(" - %s: %lu\n", feature->name, bench->run());
         }
         bench->destroy();

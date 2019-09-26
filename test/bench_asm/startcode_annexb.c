@@ -51,7 +51,6 @@ bench_startcode_FindAnnexB(void)
         cycles += cycles_end - cycles_start;
         buffer[j] = 0;
     }
-    printf("%ld\n", cycles >> 12);
     return cycles >> 12;
 }
 

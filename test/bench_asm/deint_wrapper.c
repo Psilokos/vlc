@@ -18,7 +18,7 @@
 
 struct filter_sys
 {
-    filter_chain_t *deint;
+    filter_t *deint_filter;
     uint64_t total_delta;
     int num_delta;
 };
@@ -28,7 +28,7 @@ Filter(filter_t *filter, picture_t *pic)
 {
     struct filter_sys *sys = filter->p_sys;
     uint64_t const start_time = read_cycle_counter();
-    pic = filter_chain_VideoFilter(sys->deint, pic);
+    pic = sys->deint_filter->pf_video_filter(sys->deint_filter, pic);
     uint64_t const end_time = read_cycle_counter();
     sys->total_delta += end_time - start_time;
     ++sys->num_delta;
@@ -44,8 +44,14 @@ Close(vlc_object_t *obj)
     uint64_t *cycles = shmat(shm_id, NULL, 0);
     *cycles = sys->total_delta / sys->num_delta;
     shmdt(cycles);
-    if (sys->deint)
-        filter_chain_Delete(sys->deint);
+    if (sys->deint_filter)
+    {
+        if (sys->deint_filter->p_module)
+            module_unneed(sys->deint_filter, sys->deint_filter->p_module);
+        es_format_Clean(&sys->deint_filter->fmt_out);
+        es_format_Clean(&sys->deint_filter->fmt_in);
+        vlc_object_delete(sys->deint_filter);
+    }
     free(sys);
 }
 
@@ -55,7 +61,7 @@ BufferNew(filter_t *filter)
     return filter_NewPicture((filter_t *)filter->owner.sys);
 }
 
-static struct filter_video_callbacks const cbs =
+static struct filter_video_callbacks const vfilter_cbs =
 {
     .buffer_new = BufferNew
 };
@@ -68,26 +74,29 @@ Open(vlc_object_t *obj)
     if (filter->p_cfg && !strcmp(filter->p_cfg->psz_name, "wrapper-opened"))
         return VLC_EGENERIC;
 
-    fprintf(stderr, "IT FUCKING WORKS!!!!\n");
-
     struct filter_sys *sys = calloc(1, sizeof(*sys));
     if (!sys)
         return VLC_ENOMEM;
 
-    filter_owner_t owner =
-    {
-        .video = &cbs,
-        .sys = filter
-    };
-    sys->deint = filter_chain_NewVideo(filter, false, &owner);
-    if (!sys->deint)
+    filter_t *deint_filter = vlc_object_create(obj, sizeof(filter_t));
+    if (!deint_filter)
         goto error;
 
+    es_format_Copy(&deint_filter->fmt_in, &filter->fmt_in);
+    es_format_Copy(&deint_filter->fmt_out, &filter->fmt_out);
+    deint_filter->b_allow_fmt_out_change = false;
     static struct config_chain_t cfg = { .psz_name = "wrapper-opened" };
-    if (!filter_chain_AppendFilter(sys->deint, "deinterlace", &cfg,
-                                   &filter->fmt_in, &filter->fmt_out))
+    deint_filter->p_cfg = &cfg;
+    deint_filter->psz_name = "deinterlace"; // XXX can it be smth else, like deinterlace-bench
+    filter_owner_t owner = { .video = &vfilter_cbs, .sys = filter };
+    deint_filter->owner = owner;
+
+    deint_filter->p_module =
+        module_need(deint_filter, "video filter", "deinterlace", true);
+    if (!deint_filter->p_module)
         goto error;
 
+    sys->deint_filter = deint_filter;
     filter->p_sys = sys;
     filter->pf_video_filter = Filter;
     return VLC_SUCCESS;
