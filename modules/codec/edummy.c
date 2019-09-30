@@ -30,6 +30,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_codec.h>
+#include <vlc_fourcc.h>
 
 static int OpenEncoder( vlc_object_t * );
 static void CloseEncoder( vlc_object_t * );
@@ -56,6 +57,7 @@ static int OpenEncoder( vlc_object_t *p_this )
 {
     encoder_t *p_enc = (encoder_t *)p_this;
 
+    p_enc->fmt_in.i_codec = VLC_CODEC_I420;
     p_enc->pf_encode_video = EncodeVideo;
     p_enc->pf_encode_audio = EncodeAudio;
 
