@@ -156,7 +156,9 @@ test_modules_keystore_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_tls_SOURCES = modules/misc/tls.c
 test_modules_tls_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_demux_dashuri_SOURCES = modules/demux/dashuri.cpp
-test_bench_asm_SOURCES = bench_asm/main.c
+test_bench_asm_SOURCES = bench_asm/main.c \
+						 bench_asm/startcode_annexb.c \
+						 $(top_srcdir)/modules/packetizer/startcode.asm
 test_bench_asm_LDADD = $(LIBVLCCORE)
 
 checkall:
