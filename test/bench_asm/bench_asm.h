@@ -9,6 +9,12 @@ void bench_asm_subscribe(int id, char const *name,
                          uint64_t (*bench)(void), bool need_warm_up);
 
 void subscribe_startcode_annexb(int id);
+void subscribe_deinterlacer_linear_8bit(int id);
+void subscribe_deinterlacer_linear_16bit(int id);
+void subscribe_deinterlacer_mean_8bit(int id);
+void subscribe_deinterlacer_mean_16bit(int id);
+void subscribe_deinterlacer_blend_8bit(int id);
+void subscribe_deinterlacer_blend_16bit(int id);
 
 static inline uint64_t
 read_cycle_counter(void)
