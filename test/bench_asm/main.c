@@ -24,6 +24,7 @@ static struct bench
     bool need_warm_up;
 } benchmarks[] =
 {
+    { .subscribe = subscribe_startcode_annexb },
     { 0 }
 };
 

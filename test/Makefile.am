@@ -167,7 +167,9 @@ test_modules_demux_ts_pes_SOURCES = modules/demux/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.h
 
-test_bench_asm_SOURCES = bench_asm/main.c
+test_bench_asm_SOURCES = bench_asm/main.c \
+						 bench_asm/startcode_annexb.c \
+						 $(top_srcdir)/modules/packetizer/startcode.asm
 test_bench_asm_LDADD = $(LIBVLCCORE)
 
 checkall:
