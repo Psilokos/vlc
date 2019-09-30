@@ -25,6 +25,12 @@ static struct bench
 } benchmarks[] =
 {
     { .subscribe = subscribe_startcode_annexb },
+    { .subscribe = subscribe_deinterlacer_linear_8bit },
+    { .subscribe = subscribe_deinterlacer_linear_16bit },
+    { .subscribe = subscribe_deinterlacer_mean_8bit },
+    { .subscribe = subscribe_deinterlacer_mean_16bit },
+    { .subscribe = subscribe_deinterlacer_blend_8bit },
+    { .subscribe = subscribe_deinterlacer_blend_16bit },
     { 0 }
 };
 
