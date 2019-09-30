@@ -8,6 +8,8 @@ void bench_asm_subscribe(int id, char const *name,
                          int (*check_feature)(int),
                          uint64_t (*bench)(void), bool need_warm_up);
 
+void subscribe_startcode_annexb(int id);
+
 static inline uint64_t
 read_cycle_counter(void)
 {
