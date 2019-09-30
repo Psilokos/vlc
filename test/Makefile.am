@@ -57,6 +57,7 @@ EXTRA_PROGRAMS = \
 	test_libvlc_meta \
 	test_libvlc_media_list_player \
 	test_src_input_stream_net \
+	test_bench_asm \
 	$(NULL)
 
 #check_DATA = samples/test.sample samples/meta.sample
@@ -155,6 +156,8 @@ test_modules_keystore_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_tls_SOURCES = modules/misc/tls.c
 test_modules_tls_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_demux_dashuri_SOURCES = modules/demux/dashuri.cpp
+test_bench_asm_SOURCES = bench_asm/main.c
+test_bench_asm_LDADD = $(LIBVLCCORE)
 
 checkall:
 	$(MAKE) check_PROGRAMS="$(check_PROGRAMS) $(EXTRA_PROGRAMS)" check
