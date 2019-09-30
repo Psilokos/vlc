@@ -61,6 +61,7 @@ EXTRA_PROGRAMS = \
 	test_libvlc_meta \
 	test_libvlc_media_list_player \
 	test_src_input_stream_net \
+	test_bench_asm \
 	$(NULL)
 
 #check_DATA = samples/test.sample samples/meta.sample
@@ -166,6 +167,8 @@ test_modules_demux_ts_pes_SOURCES = modules/demux/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.h
 
+test_bench_asm_SOURCES = bench_asm/main.c
+test_bench_asm_LDADD = $(LIBVLCCORE)
 
 checkall:
 	$(MAKE) check_PROGRAMS="$(check_PROGRAMS) $(EXTRA_PROGRAMS)" check
