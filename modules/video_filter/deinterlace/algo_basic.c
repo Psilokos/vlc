@@ -360,6 +360,10 @@ RENDER_MEAN(Merge16BitGeneric, 16, c)
 RENDER_MEAN_SIMD(8, sse2)
 RENDER_MEAN_SIMD(16, sse2)
 #endif
+#ifdef __x86_64__
+RENDER_MEAN_SIMD(8, avx2)
+RENDER_MEAN_SIMD(16, avx2)
+#endif
 #if defined(CAN_COMPILE_ARM)
 RENDER_MEAN_ARM(8, arm_neon)
 RENDER_MEAN_ARM(16, arm_neon)
@@ -377,6 +381,10 @@ RENDER_MEAN_ARM(16, arm64_neon)
 
 single_pic_renderer_t MeanRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderMean8Bit_avx2 : RenderMean16Bit_avx2;
+#endif
 #if defined(__i386__) || defined(__x86_64__)
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderMean8Bit_sse2 : RenderMean16Bit_sse2;
