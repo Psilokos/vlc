@@ -245,10 +245,10 @@ ordered_renderer_t LinearRenderer(unsigned pixel_size)
  * RenderMean: Half-resolution blender
  *****************************************************************************/
 
-#define RENDER_MEAN(feature, bpc)                                           \
-static int RenderMean##bpc##Bit##feature( filter_t *p_filter,               \
-                                          picture_t *p_outpic,              \
-                                          picture_t *p_pic )                \
+#define RENDER_MEAN_C(bpc)                                                  \
+static int RenderMean##bpc##Bit_c( filter_t *p_filter,                      \
+                                   picture_t *p_outpic,                     \
+                                   picture_t *p_pic )                       \
 {                                                                           \
     VLC_UNUSED(p_filter);                                                   \
     int i_plane;                                                            \
@@ -267,9 +267,9 @@ static int RenderMean##bpc##Bit##feature( filter_t *p_filter,               \
         /* All lines: mean value */                                         \
         for( ; p_out < p_out_end ; )                                        \
         {                                                                   \
-            Merge##bpc##Bit##feature( p_out, p_in,                          \
-                                      p_in + p_pic->p[i_plane].i_pitch,     \
-                                      p_pic->p[i_plane].i_pitch );          \
+            Merge##bpc##BitGeneric( p_out, p_in,                            \
+                                    p_in + p_pic->p[i_plane].i_pitch,       \
+                                    p_pic->p[i_plane].i_pitch );            \
                                                                             \
             p_out += p_outpic->p[i_plane].i_pitch;                          \
             p_in += 2 * p_pic->p[i_plane].i_pitch;                          \
@@ -278,21 +278,45 @@ static int RenderMean##bpc##Bit##feature( filter_t *p_filter,               \
     return VLC_SUCCESS;                                                     \
 }
 
-RENDER_MEAN(Generic, 8)
-RENDER_MEAN(Generic, 16)
-#if defined(CAN_COMPILE_SSE2)
-RENDER_MEAN(SSE2, 8)
-RENDER_MEAN(SSE2, 16)
-#endif
+#define RENDER_MEAN_SIMD(feature, bpc)                                      \
+                                                                            \
+void vlcpriv_deint_mean_##bpc##bit_##feature(uint8_t *dst,                  \
+                                             ptrdiff_t dst_stride,          \
+                                             uint8_t const *src,            \
+                                             ptrdiff_t src_stride,          \
+                                             unsigned int w, unsigned h);   \
+                                                                            \
+static int RenderMean##bpc##Bit_##feature(filter_t *filter,                 \
+                                          picture_t *opic,                  \
+                                          picture_t *ipic)                  \
+{                                                                           \
+    VLC_UNUSED(filter);                                                     \
+    for (int plane = 0 ; plane < ipic->i_planes ; ++plane)                  \
+    {                                                                       \
+        uint8_t *dst = opic->p[plane].p_pixels;                             \
+        uint8_t *src = ipic->p[plane].p_pixels;                             \
+        ptrdiff_t dst_stride = opic->p[plane].i_pitch;                      \
+        ptrdiff_t src_stride = ipic->p[plane].i_pitch;                      \
+        unsigned int w = opic->p[plane].i_visible_pitch / (bpc / 8);        \
+        unsigned int h = opic->p[plane].i_visible_lines;                    \
+        vlcpriv_deint_mean_##bpc##bit_##feature(dst, dst_stride,            \
+                                                src, src_stride,            \
+                                                w, h);                      \
+    }                                                                       \
+    return VLC_SUCCESS;                                                     \
+}
+
+RENDER_MEAN_C(8)
+RENDER_MEAN_C(16)
+RENDER_MEAN_SIMD(sse2, 8)
+RENDER_MEAN_SIMD(sse2, 16)
 
 single_pic_renderer_t MeanRenderer(unsigned pixel_size)
 {
-#if defined(CAN_COMPILE_SSE2)
     if (vlc_CPU_SSE2())
-        return pixel_size & 1 ? RenderMean8BitSSE2 : RenderMean16BitSSE2;
+        return pixel_size & 1 ? RenderMean8Bit_sse2 : RenderMean16Bit_sse2;
     else
-#endif
-        return pixel_size & 1 ? RenderMean8BitGeneric : RenderMean16BitGeneric;
+        return pixel_size & 1 ? RenderMean8Bit_c : RenderMean16Bit_c;
 }
 
 /*****************************************************************************
