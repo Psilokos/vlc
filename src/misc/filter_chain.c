@@ -369,7 +369,6 @@ int filter_chain_AppendFromString( filter_chain_t *chain, const char *str )
             goto error;
         }
 
-        free( name );
         ret++;
     }
 
