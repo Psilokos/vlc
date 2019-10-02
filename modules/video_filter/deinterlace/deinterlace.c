@@ -537,33 +537,9 @@ notsupp:
 
     IVTCClearState( p_filter );
 
-#if defined(CAN_COMPILE_C_ALTIVEC)
-    if( pixel_size == 1 && vlc_CPU_ALTIVEC() )
-        p_sys->pf_merge = MergeAltivec;
-    else
-#endif
 #if defined(CAN_COMPILE_SSE2)
     if( vlc_CPU_SSE2() )
-    {
         p_sys->pf_merge = pixel_size == 1 ? Merge8BitSSE2 : Merge16BitSSE2;
-        p_sys->pf_end_merge = EndMMX;
-    }
-    else
-#endif
-#if defined(CAN_COMPILE_MMXEXT)
-    if( pixel_size == 1 && vlc_CPU_MMXEXT() )
-    {
-        p_sys->pf_merge = MergeMMXEXT;
-        p_sys->pf_end_merge = EndMMX;
-    }
-    else
-#endif
-#if defined(CAN_COMPILE_3DNOW)
-    if( pixel_size == 1 && vlc_CPU_3dNOW() )
-    {
-        p_sys->pf_merge = Merge3DNow;
-        p_sys->pf_end_merge = End3DNow;
-    }
     else
 #endif
 #if defined(CAN_COMPILE_ARM)
@@ -584,12 +560,7 @@ notsupp:
         p_sys->pf_merge = pixel_size == 1 ? merge8_arm64_neon : merge16_arm64_neon;
     else
 #endif
-    {
         p_sys->pf_merge = pixel_size == 1 ? Merge8BitGeneric : Merge16BitGeneric;
-#if defined(__i386__) || defined(__x86_64__)
-        p_sys->pf_end_merge = NULL;
-#endif
-    }
 
     /* */
     video_format_t fmt;
