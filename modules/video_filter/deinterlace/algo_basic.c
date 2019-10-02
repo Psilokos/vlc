@@ -236,6 +236,10 @@ RENDER_LINEAR(Merge16BitGeneric, 16, c)
 RENDER_LINEAR_SIMD(8, sse2)
 RENDER_LINEAR_SIMD(16, sse2)
 #endif
+#ifdef __x86_64__
+RENDER_LINEAR_SIMD(8, avx2)
+RENDER_LINEAR_SIMD(16, avx2)
+#endif
 #if defined(CAN_COMPILE_ARM)
 RENDER_LINEAR_ARM(8, arm_neon)
 RENDER_LINEAR_ARM(16, arm_neon)
@@ -253,6 +257,10 @@ RENDER_LINEAR_ARM(16, arm64_neon)
 
 ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderLinear8Bit_avx2 : RenderLinear16Bit_avx2;
+#endif
 #if defined(__i386__) || defined(__x86_64__)
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderLinear8Bit_sse2 : RenderLinear16Bit_sse2;
