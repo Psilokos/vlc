@@ -318,9 +318,17 @@ RENDER_MEAN_C(8)
 RENDER_MEAN_C(16)
 RENDER_MEAN_SIMD(sse2, 8)
 RENDER_MEAN_SIMD(sse2, 16)
+#ifdef __x86_64__
+RENDER_MEAN_SIMD(avx2, 8)
+RENDER_MEAN_SIMD(avx2, 16)
+#endif
 
 single_pic_renderer_t MeanRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderMean8Bit_avx2 : RenderMean16Bit_avx2;
+#endif
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderMean8Bit_sse2 : RenderMean16Bit_sse2;
     else
