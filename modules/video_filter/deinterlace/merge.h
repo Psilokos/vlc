@@ -35,11 +35,11 @@
  * Macros
  *****************************************************************************/
 
-/* Convenient Merge() and EndMerge() macros to pick the most appropriate
-   merge implementation automatically.
+/* Convenient Merge() macro to pick the most appropriate merge implementation
+ * automatically.
 
    Note that you'll need to include vlc_filter.h and deinterlace.h
-   to use these.
+   to use it.
 
  * Note that the Open() call of the deinterlace filter automatically selects
  * the most appropriate merge routine based on the CPU capabilities.
@@ -58,17 +58,6 @@
  *
  */
 #define Merge p_sys->pf_merge
-
-/*
- * EndMerge() macro, which must be called after the merge is
- * finished, if the Merge() macro was used to perform the merge.
- */
-#if defined(__i386__) || defined(__x86_64__)
-# define EndMerge() \
-    if(p_sys->pf_end_merge) (p_sys->pf_end_merge)()
-#else
-# define EndMerge() (void)0
-#endif
 
 /*****************************************************************************
  * Merge routines
@@ -99,42 +88,6 @@ void Merge8BitGeneric( void *_p_dest, const void *_p_s1, const void *_p_s2,
  */
 void Merge16BitGeneric( void *_p_dest, const void *_p_s1, const void *_p_s2,
                         size_t i_bytes );
-
-#if defined(CAN_COMPILE_C_ALTIVEC)
-/**
- * Altivec routine to blend pixels from two picture lines.
- *
- * @param _p_dest Target
- * @param _p_s1 Source line A
- * @param _p_s2 Source line B
- * @param i_bytes Number of bytes to merge
- */
-void MergeAltivec ( void *, const void *, const void *, size_t );
-#endif
-
-#if defined(CAN_COMPILE_MMXEXT)
-/**
- * MMXEXT routine to blend pixels from two picture lines.
- *
- * @param _p_dest Target
- * @param _p_s1 Source line A
- * @param _p_s2 Source line B
- * @param i_bytes Number of bytes to merge
- */
-void MergeMMXEXT  ( void *, const void *, const void *, size_t );
-#endif
-
-#if defined(CAN_COMPILE_3DNOW)
-/**
- * 3DNow routine to blend pixels from two picture lines.
- *
- * @param _p_dest Target
- * @param _p_s1 Source line A
- * @param _p_s2 Source line B
- * @param i_bytes Number of bytes to merge
- */
-void Merge3DNow   ( void *, const void *, const void *, size_t );
-#endif
 
 #if defined(CAN_COMPILE_SSE)
 /**
@@ -182,35 +135,5 @@ void merge16_arm64_neon (void *, const void *, const void *, size_t);
 
 void merge8_arm_sve(void *, const void *, const void *, size_t);
 void merge16_arm_sve(void *, const void *, const void *, size_t);
-
-/*****************************************************************************
- * EndMerge routines
- *****************************************************************************/
-
-#if defined(CAN_COMPILE_MMXEXT) || defined(CAN_COMPILE_SSE)
-/**
- * MMX merge finalization routine.
- *
- * Must be called after an MMX merge is finished.
- * This exits MMX mode (by executing the "emms" instruction).
- *
- * The EndMerge() macro detects whether this is needed, and calls if it is,
- * so just use that.
- */
-void EndMMX       ( void );
-#endif
-
-#if defined(CAN_COMPILE_3DNOW)
-/**
- * 3DNow merge finalization routine.
- *
- * Must be called after a 3DNow merge is finished.
- * This exits 3DNow mode (by executing the "femms" instruction).
- *
- * The EndMerge() macro detects whether this is needed, and calls if it is,
- * so just use that.
- */
-void End3DNow     ( void );
-#endif
 
 #endif
