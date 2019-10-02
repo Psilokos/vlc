@@ -147,8 +147,8 @@ int picture_Setup( picture_t *p_picture, const video_format_t *restrict fmt )
 
     for( unsigned i = 0; i < p_dsc->plane_count; i++ )
     {
-        i_modulo_w = LCM( i_modulo_w, 16 * p_dsc->p[i].w.den );
-        i_modulo_h = LCM( i_modulo_h, 16 * p_dsc->p[i].h.den );
+        i_modulo_w = LCM( i_modulo_w, 32 * p_dsc->p[i].w.den );
+        i_modulo_h = LCM( i_modulo_h, 32 * p_dsc->p[i].h.den );
         if( i_ratio_h < p_dsc->p[i].h.den )
             i_ratio_h = p_dsc->p[i].h.den;
     }
@@ -185,7 +185,7 @@ int picture_Setup( picture_t *p_picture, const video_format_t *restrict fmt )
                              * p_dsc->pixel_size;
         p->i_pixel_pitch = p_dsc->pixel_size;
 
-        assert( (p->i_pitch % 16) == 0 );
+        assert( (p->i_pitch % 32) == 0 );
     }
     p_picture->i_planes = p_dsc->plane_count;
 
@@ -206,7 +206,7 @@ static bool picture_InitPrivate(const video_format_t *restrict p_fmt,
     p_picture->date = VLC_TICK_INVALID;
 
     p_picture->format = *p_fmt;
-    /* Make sure the real dimensions are a multiple of 16 */
+    /* Make sure the real dimensions are a multiple of 32 */
     if( picture_Setup( p_picture, p_fmt ) )
         return false;
 
