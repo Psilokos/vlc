@@ -232,9 +232,17 @@ RENDER_LINEAR_C(8)
 RENDER_LINEAR_C(16)
 RENDER_LINEAR_SIMD(sse2, 8)
 RENDER_LINEAR_SIMD(sse2, 16)
+#ifdef __x86_64__
+RENDER_LINEAR_SIMD(avx2, 8)
+RENDER_LINEAR_SIMD(avx2, 16)
+#endif
 
 ordered_renderer_t LinearRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderLinear8Bit_avx2 : RenderLinear16Bit_avx2;
+#endif
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderLinear8Bit_sse2 : RenderLinear16Bit_sse2;
     else
