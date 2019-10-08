@@ -105,10 +105,20 @@ cglobal deint_mean_%1bit, 6, 8, 2, dst, ds, src, ss, w, h, src1, x
     RET
 %endmacro
 
+%macro DEINT_BLEND 1
+ %assign pxsize %1 / 8
+cglobal deint_blend_%1bit, 6, 8, 2, dst, ds, src, ss, w, h, _, x
+    COPY_LINE first_line
+    add               dstq, dsq
+    jmp mangle(private_prefix %+ _deint_mean_%1bit %+ SUFFIX).main_loop
+%endmacro
+
 INIT_XMM sse2
 
 DEINT_LINEAR 8
 DEINT_MEAN 8
+DEINT_BLEND 8
 
 DEINT_LINEAR 16
 DEINT_MEAN 16
+DEINT_BLEND 16
