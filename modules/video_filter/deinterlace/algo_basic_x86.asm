@@ -106,10 +106,36 @@ cglobal deint_mean_%1bit, 6, 8, 2, dst, ds, src, ss, w, h, src1, x
     RET
 %endmacro
 
+%macro DEINT_BLEND 1
+ %assign pxsize %1 / 8
+cglobal deint_blend_%1bit, 6, 8, 2, dst, ds, src, ss, w, h, src1, x
+    COPY_LINE first_line
+    add               dstq, dsq
+    dec                 hd
+.main_loop:
+    lea              src1q, [srcq+ssq]
+    xor                 xd, xd
+.main_loop_x:
+    mova                m0, [srcq +xq*pxsize]
+    AVG                 m0, [src1q+xq*pxsize]
+    mova  [dstq+xq*pxsize], m0
+    add                 xd, mmsize / pxsize
+    cmp                 xd, wd
+    jl .main_loop_x
+    add               srcq, ssq
+    add              src1q, ssq
+    add               dstq, dsq
+    dec                 hd
+    jg .main_loop
+    RET
+%endmacro
+
 INIT_XMM sse2
 
 DEINT_LINEAR 8
 DEINT_MEAN 8
+DEINT_BLEND 8
 
 DEINT_LINEAR 16
 DEINT_MEAN 16
+DEINT_BLEND 16
