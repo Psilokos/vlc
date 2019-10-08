@@ -488,6 +488,10 @@ RENDER_BLEND(Merge16BitGeneric, 16, c)
 RENDER_BLEND_SIMD(8, sse2)
 RENDER_BLEND_SIMD(16, sse2)
 #endif
+#ifdef __x86_64__
+RENDER_BLEND_SIMD(8, avx2)
+RENDER_BLEND_SIMD(16, avx2)
+#endif
 #if defined(CAN_COMPILE_ARM)
 RENDER_BLEND_ARM(8, arm_neon)
 RENDER_BLEND_ARM(16, arm_neon)
@@ -505,6 +509,11 @@ RENDER_BLEND_ARM(16, arm64_neon)
 
 single_pic_renderer_t BlendRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderBlend8Bit_avx2 : RenderBlend16Bit_avx2;
+    else
+#endif
 #if defined(__i386__) || defined(__x86_64__)
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderBlend8Bit_sse2 : RenderBlend16Bit_sse2;
