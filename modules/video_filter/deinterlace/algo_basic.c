@@ -408,9 +408,18 @@ RENDER_BLEND_C(8)
 RENDER_BLEND_C(16)
 RENDER_BLEND_SIMD(sse2, 8)
 RENDER_BLEND_SIMD(sse2, 16)
+#ifdef __x86_64__
+RENDER_BLEND_SIMD(avx2, 8)
+RENDER_BLEND_SIMD(avx2, 16)
+#endif
 
 single_pic_renderer_t BlendRenderer(unsigned pixel_size)
 {
+#ifdef __x86_64__
+    if (vlc_CPU_AVX2())
+        return pixel_size & 1 ? RenderBlend8Bit_avx2 : RenderBlend16Bit_avx2;
+    else
+#endif
     if (vlc_CPU_SSE2())
         return pixel_size & 1 ? RenderBlend8Bit_sse2 : RenderBlend16Bit_sse2;
     else
