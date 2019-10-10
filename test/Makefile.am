@@ -47,6 +47,7 @@ check_PROGRAMS = \
 	test_modules_demux_dashuri \
 	test_modules_demux_timestamps_filter \
 	test_modules_demux_ts_pes \
+	test_modules_vfilter_deinterlace_simd \
 	$(NULL)
 
 if ENABLE_SOUT
@@ -171,6 +172,11 @@ test_modules_demux_ts_pes_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_demux_ts_pes_SOURCES = modules/demux/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.c \
 				../modules/demux/mpeg/ts_pes.h
+test_modules_vfilter_deinterlace_simd_SOURCES = \
+				modules/video_filter/deinterlace.c \
+				$(top_srcdir)/modules/video_filter/deinterlace/algo_basic.c \
+				$(top_srcdir)/modules/video_filter/deinterlace/merge.c
+test_modules_vfilter_deinterlace_simd_LDADD = $(LIBVLCCORE)
 
 test_bench_asm_SOURCES = bench_asm/main.c \
 						 bench_asm/startcode_annexb.c \
