@@ -45,7 +45,7 @@ void Merge8BitGeneric( void *_p_dest, const void *_p_s1,
     const uint8_t *p_s2 = _p_s2;
 
     for( ; i_bytes > 0; i_bytes-- )
-        *p_dest++ = ( *p_s1++ + *p_s2++ ) >> 1;
+        *p_dest++ = ( *p_s1++ + *p_s2++ + 1 ) >> 1;
 }
 
 void Merge16BitGeneric( void *_p_dest, const void *_p_s1,
@@ -56,7 +56,7 @@ void Merge16BitGeneric( void *_p_dest, const void *_p_s1,
     const uint16_t *p_s2 = _p_s2;
 
     for( size_t i_words = i_bytes / 2; i_words > 0; i_words-- )
-        *p_dest++ = ( *p_s1++ + *p_s2++ ) >> 1;
+        *p_dest++ = ( *p_s1++ + *p_s2++ + 1 ) >> 1;
 }
 
 #if defined(CAN_COMPILE_SSE)
