@@ -125,18 +125,18 @@ VLC_WEAK unsigned vlc_CPU_raw(void)
 
     /* Needed for x86 CPU capabilities detection */
 # if defined (__i386__) && defined (__PIC__)
-#  define cpuid(reg) \
+#  define cpuid(eax, ecx) \
     asm volatile ("xchgl %%ebx,%1\n\t" \
                   "cpuid\n\t" \
                   "xchgl %%ebx,%1\n\t" \
                   : "=a" (i_eax), "=r" (i_ebx), "=c" (i_ecx), "=d" (i_edx) \
-                  : "a" (reg) \
+                  : "a" (eax), "c"(ecx) \
                   : "cc");
 # else
-#  define cpuid(reg) \
+#  define cpuid(eax, ecx) \
     asm volatile ("cpuid\n\t" \
                   : "=a" (i_eax), "=b" (i_ebx), "=c" (i_ecx), "=d" (i_edx) \
-                  : "a" (reg) \
+                  : "a" (eax), "c"(ecx) \
                   : "cc");
 # endif
      /* Check if the OS really supports the requested instructions */
@@ -164,7 +164,7 @@ VLC_WEAK unsigned vlc_CPU_raw(void)
 # endif
 
     /* the CPU supports the CPUID instruction - get its level */
-    cpuid( 0x00000000 );
+    cpuid( 0x00000000, 0x00000000 );
 
 # if defined (__i386__) && !defined (__i586__) \
   && !defined (__i686__) && !defined (__pentium4__) \
@@ -177,8 +177,8 @@ VLC_WEAK unsigned vlc_CPU_raw(void)
     b_amd = ( i_ebx == 0x68747541 ) && ( i_ecx == 0x444d4163 )
                     && ( i_edx == 0x69746e65 );
 
-    /* test for the MMX flag */
-    cpuid( 0x00000001 );
+    /* test for the basic proc feature bits */
+    cpuid( 0x00000001, 0x00000000 );
 # if !defined (__MMX__)
     if( ! (i_edx & 0x00800000) )
         goto out;
@@ -203,16 +203,24 @@ VLC_WEAK unsigned vlc_CPU_raw(void)
             i_capabilities |= VLC_CPU_SSE4_1;
         if (i_ecx & 0x00100000)
             i_capabilities |= VLC_CPU_SSE4_2;
+        if (i_ecx & 0x04000000)
+            i_capabilities |= VLC_CPU_AVX;
+
+        /* test for extended features */
+        cpuid(0x00000007, 0x00000000);
+
+        if (i_ebx & 0x00000020)
+            i_capabilities |= VLC_CPU_AVX2;
     }
 
     /* test for additional capabilities */
-    cpuid( 0x80000000 );
+    cpuid( 0x80000000, 0x00000000 );
 
     if( i_eax < 0x80000001 )
         goto out;
 
     /* list these additional capabilities */
-    cpuid( 0x80000001 );
+    cpuid( 0x80000001, 0x00000000 );
 
 # if defined (CAN_COMPILE_3DNOW) && !defined (__3dNOW__)
     if ((i_edx & 0x80000000) && vlc_CPU_check ("3D Now!", ThreeD_Now_test))
