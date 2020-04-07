@@ -30,6 +30,8 @@
  * Retrieves CPU capability flags.
  */
 VLC_API unsigned vlc_CPU(void);
+VLC_API void vlc_CPU_mask(unsigned cap);
+VLC_API void vlc_CPU_unmask(unsigned cap);
 
 /**
  * Computes CPU capability flags.

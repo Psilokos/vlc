@@ -257,6 +257,8 @@ out:
     return i_capabilities;
 }
 
+static uint32_t cpu_mask = 0;
+
 unsigned vlc_CPU(void)
 {
     static atomic_uint cpu_flags = ATOMIC_VAR_INIT(-1);
@@ -267,7 +269,17 @@ unsigned vlc_CPU(void)
         atomic_store_explicit(&cpu_flags, flags, memory_order_relaxed);
     }
 
-    return flags;
+    return flags & ~cpu_mask;
+}
+
+void vlc_CPU_mask(unsigned cap)
+{
+    cpu_mask |= cap;
+}
+
+void vlc_CPU_unmask(unsigned cap)
+{
+    cpu_mask &= ~cap;
 }
 
 void vlc_CPU_dump (vlc_object_t *obj)
